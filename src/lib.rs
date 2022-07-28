@@ -19,7 +19,7 @@ pub mod pallet {
     use scale_info::TypeInfo;
 
     /// Structure that holds the music style information that will be stored on-chain
-    #[derive(Clone, Encode, Decode, Eq, PartialEq, MaxEncodedLen, TypeInfo)]
+    #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
     pub struct MusicStyle<BoundedString> {
         pub name: BoundedString,
     }
@@ -56,12 +56,16 @@ pub mod pallet {
     pub enum Event<T: Config> {
         /// A new music style have been added
         Added(u32),
+        /// A music style have been removed
+        Removed(u32),
     }
 
     #[pallet::error]
     pub enum Error<T> {
         /// Music style too long
         NameTooLong,
+        /// Music style not found
+        MusicStyleNotFound,
     }
 
     #[pallet::genesis_config]
@@ -108,6 +112,23 @@ pub mod pallet {
             <MusicStyleCount<T>>::put(index + 1);
 
             Self::deposit_event(Event::Added(index));
+
+            Ok(())
+        }
+
+        #[pallet::weight(0)]
+        pub fn remove(origin: OriginFor<T>, id: u32) -> DispatchResult {
+            T::AdminOrigin::ensure_origin(origin.clone())?;
+
+            ensure!(
+                <MusicStyles<T>>::contains_key(&id),
+                Error::<T>::MusicStyleNotFound
+            );
+
+            <MusicStyles<T>>::remove(&id);
+            <MusicStyleCount<T>>::put(<MusicStyleCount<T>>::get() - 1);
+
+            Self::deposit_event(Event::Removed(id));
 
             Ok(())
         }

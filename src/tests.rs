@@ -25,7 +25,7 @@ mod add {
     use super::*;
 
     #[test]
-    fn non_admin_could_not_add_a_style() {
+    fn non_admin_cannot_add_a_style() {
         new_test_ext().execute_with(|| {
             assert_noop!(
                 MusicStylesPallet::add(Origin::signed(BOB), b"Reggae".to_vec().into()),
@@ -48,7 +48,7 @@ mod add {
     }
 
     #[test]
-    fn add_should_work_mutate_chain_and_emit_event() {
+    fn add_should_mutate_chain_and_emit_event() {
         new_test_ext().execute_with(|| {
             let name = generate_random_string(10).as_bytes().to_vec();
 
@@ -65,6 +65,50 @@ mod add {
 
             // Check that the event has been called
             assert_last_event(Added(0));
+        });
+    }
+}
+
+mod remove {
+    use super::*;
+
+    #[test]
+    fn non_admin_cannot_remove_a_style() {
+        new_test_ext().execute_with(|| {
+            assert_noop!(MusicStylesPallet::remove(Origin::signed(BOB), 0), BadOrigin);
+        });
+    }
+
+    #[test]
+    fn cannot_remove_an_unexistising_id() {
+        new_test_ext().execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::remove(Origin::root(), 10),
+                Error::<Test>::MusicStyleNotFound
+            );
+        });
+    }
+
+    #[test]
+    fn remove_should_mutate_chain_and_emit_event() {
+        new_test_ext().execute_with(|| {
+            // Add a new style to be able to remove it later
+            assert_ok!(MusicStylesPallet::add(
+                Origin::root(),
+                b"Reggae".to_vec().into()
+            ));
+
+            // Remove it
+            assert_ok!(MusicStylesPallet::remove(Origin::root(), 0));
+
+            // Querying it should fail since it was removed
+            assert_eq!(MusicStylesPallet::get(0), None);
+
+            // Check that the storage has been updated
+            assert_eq!(MusicStylesPallet::count(), 0);
+
+            // Check that the event has been called
+            assert_last_event(Removed(0));
         });
     }
 }

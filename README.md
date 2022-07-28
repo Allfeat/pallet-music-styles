@@ -16,5 +16,6 @@ FRAME pallet to manage and store music styles on-chain.
 #### For admin users
 
 - `add` - Store a new music style.
+- `remove` - Remove a music style.
 
 License: Unlicense
