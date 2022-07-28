@@ -1,23 +1,70 @@
-use crate::{mock::*, Error};
-use frame_support::{assert_noop, assert_ok};
+use super::{Event as MusicStyleEvent, *};
+use crate::{mock::*, Event::*};
+use frame_support::{assert_noop, assert_ok, error::BadOrigin};
+use rand::{thread_rng, Rng};
 
-#[test]
-fn it_works_for_default_value() {
-    new_test_ext().execute_with(|| {
-        // Dispatch a signed extrinsic.
-        assert_ok!(TemplateModule::do_something(Origin::signed(1), 42));
-        // Read pallet storage and assert an expected result.
-        assert_eq!(TemplateModule::something(), Some(42));
-    });
+/// Helper function that generates a random string from a given length
+/// Should only be used for testing purpose
+fn generate_random_string(length: usize) -> String {
+    let chars: Vec<char> = "abcdefghijklmnopqrstuvwxyz".chars().collect();
+    let mut result = String::with_capacity(length);
+    let mut rng = thread_rng();
+    for _ in 0..length {
+        let x: usize = rng.gen();
+        result.push(chars[x % chars.len()])
+    }
+    result
 }
 
-#[test]
-fn correct_error_for_none_value() {
-    new_test_ext().execute_with(|| {
-        // Ensure the expected error is thrown when no value is present.
-        assert_noop!(
-            TemplateModule::cause_error(Origin::signed(1)),
-            Error::<Test>::NoneValue
-        );
-    });
+/// Panic is the given event is different that the last emitted event
+fn assert_last_event(event: MusicStyleEvent<Test>) {
+    System::assert_last_event(mock::Event::MusicStylesPallet(event))
+}
+
+mod add {
+    use super::*;
+
+    #[test]
+    fn non_admin_could_not_add_a_style() {
+        new_test_ext().execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::add(Origin::signed(BOB), b"Reggae".to_vec().into()),
+                BadOrigin
+            );
+        });
+    }
+
+    #[test]
+    fn too_long_style_name_should_fail() {
+        new_test_ext().execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::add(
+                    Origin::root(),
+                    generate_random_string(100).as_bytes().to_vec()
+                ),
+                Error::<Test>::NameTooLong
+            );
+        });
+    }
+
+    #[test]
+    fn add_should_work_mutate_chain_and_emit_event() {
+        new_test_ext().execute_with(|| {
+            let name = generate_random_string(10).as_bytes().to_vec();
+
+            assert_ok!(MusicStylesPallet::add(Origin::root(), name.clone()));
+
+            let last_count = MusicStylesPallet::count();
+            let music_style =
+                MusicStylesPallet::get(last_count - 1).expect("Music style not found");
+            let music_style_fake = MusicStyle { name };
+
+            // Check that the storage have been updated
+            assert_eq!(last_count, 1);
+            assert_eq!(music_style.name, music_style_fake.name);
+
+            // Check that the event has been called
+            assert_last_event(Added(0));
+        });
+    }
 }

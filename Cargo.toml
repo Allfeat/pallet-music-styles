@@ -1,13 +1,13 @@
 [package]
-name = "pallet-template"
+name = "pallet-music-styles"
 version = "0.1.0-dev"
-description = "FRAME pallet template adapted to build on the Allfeat blockchain."
+description = "FRAME pallet to manage and store music styles on-chain."
 authors = ["Allfeat <https://github.com/All-feat>"]
 homepage = "https://allfeat.com/"
 edition = "2021"
 license = "Unlicense"
 publish = false
-repository = "https://github.com/All-feat/pallet-template"
+repository = "https://github.com/All-feat/pallet-music-styles"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -27,6 +27,7 @@ frame-benchmarking = { default-features = false, version = "4.0.0-dev", git = "h
 sp-core = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
 sp-io = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
 sp-runtime = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
+rand = "0.8.5"
 
 [features]
 default = ["std"]

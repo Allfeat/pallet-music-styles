@@ -2,15 +2,19 @@
 
 ## Overview
 
-FRAME pallet template adapted to build on the Allfeat blockchain.
+FRAME pallet to manage and store music styles on-chain.
 
 ## Interface
 
 ### Dispatchable functions
 
-#### For general users
+#### Getters
 
-- `do_something` - Put an integer on-chain.
-- `cause_error` - Method that causes an error.
+- `get` - For a given id, returns a music style.
+- `count` - Returns the music style quantity.
+
+#### For admin users
+
+- `add` - Store a new music style.
 
 License: Unlicense
