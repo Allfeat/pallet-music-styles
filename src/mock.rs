@@ -1,7 +1,10 @@
-use crate::{self as pallet_music_styles};
+use crate::{
+    self as pallet_music_styles,
+    mock::sp_api_hidden_includes_construct_runtime::hidden_include::traits::GenesisBuild,
+};
 use frame_support::{
-    construct_runtime,
-    traits::{ConstU16, ConstU32, ConstU64},
+    traits::{ConstU16, ConstU64},
+    {construct_runtime, parameter_types},
 };
 use frame_system::EnsureRoot;
 use sp_core::H256;
@@ -57,17 +60,36 @@ impl frame_system::Config for Test {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
+parameter_types! {
+    pub const MaxStyles: u32 = 5;
+    pub const NameMaxLength: u32 = 20;
+}
+
 impl pallet_music_styles::Config for Test {
     type Event = Event;
     type AdminOrigin = EnsureRoot<AccountId>;
-    type NameMaxLength = ConstU32<20>;
+    type MaxStyles = MaxStyles;
+    type NameMaxLength = NameMaxLength;
 }
 
 // Build genesis storage according to the mock runtime.
-pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
-    let storage = frame_system::GenesisConfig::default()
+pub(crate) fn new_test_ext(include_genesis: bool) -> sp_io::TestExternalities {
+    let mut storage = frame_system::GenesisConfig::default()
         .build_storage::<Test>()
         .unwrap();
+
+    let pallet_config: pallet_music_styles::GenesisConfig<Test> = match include_genesis {
+        true => pallet_music_styles::GenesisConfig {
+            styles: ["Reggae", "Rock", "Rap", "Pop"]
+                .iter()
+                .map(|style| style.as_bytes().to_vec())
+                .collect(),
+            phantom: Default::default(),
+        },
+        false => pallet_music_styles::GenesisConfig::default(),
+    };
+
+    pallet_config.assimilate_storage(&mut storage).unwrap();
 
     let mut ext: sp_io::TestExternalities = storage.into();
 
