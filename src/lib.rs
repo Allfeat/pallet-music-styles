@@ -21,7 +21,7 @@ impl<T: Config> Contains<Vec<u8>> for Pallet<T> {
             Err(_) => return false,
         };
 
-        Self::get_vec().binary_search(&bounded_name).is_ok()
+        Self::get().binary_search(&bounded_name).is_ok()
     }
 }
 
@@ -60,22 +60,13 @@ pub mod pallet {
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
-    #[pallet::storage]
-    #[pallet::getter(fn get)]
-    pub(super) type MusicStyles<T: Config> =
-        StorageMap<_, Twox64Concat, u32, MusicStyle<BoundedVec<u8, T::NameMaxLength>>, OptionQuery>;
-
-    #[pallet::storage]
-    #[pallet::getter(fn count)]
-    pub(super) type MusicStyleCount<T: Config> = StorageValue<_, u32, ValueQuery>;
-
     // Note:
     // - The outer BoundedVec could be replaced by a BoundedBTreeMap
     // to quickly check for double and vec length
     // - The inner BoundedVec (in Style) could be replaced by a
     // BoundedString to simplify public API
     #[pallet::storage]
-    #[pallet::getter(fn get_vec)]
+    #[pallet::getter(fn get)]
     pub(super) type Styles<T: Config> =
         StorageValue<_, BoundedVec<Style<T::NameMaxLength>, T::MaxStyles>, ValueQuery>;
 
@@ -83,11 +74,9 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// A new music style have been added
-        Added(u32),
-        AddedVec(Vec<u8>),
+        Added(Vec<u8>),
         /// A music style have been removed
-        Removed(u32),
-        RemovedVec(Vec<u8>),
+        Removed(Vec<u8>),
     }
 
     #[pallet::error]
@@ -147,16 +136,6 @@ pub mod pallet {
             );
 
             <Styles<T>>::put(styles.clone());
-
-            // Fill <MusicStyles<T>> StorageMap and <MusicStyleCount<T>>
-            for (index, name) in self.styles.iter().enumerate() {
-                let music_style = MusicStyle {
-                    name: name.clone().try_into().expect("Music style name too long"),
-                };
-
-                <MusicStyles<T>>::insert(index as u32, music_style);
-                <MusicStyleCount<T>>::put(index as u32 + 1);
-            }
         }
     }
 
@@ -164,23 +143,6 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         #[pallet::weight(0)]
         pub fn add(origin: OriginFor<T>, name: Vec<u8>) -> DispatchResult {
-            T::AdminOrigin::ensure_origin(origin.clone())?;
-
-            let index = <MusicStyleCount<T>>::get();
-            let music_style = MusicStyle {
-                name: name.try_into().map_err(|_| Error::<T>::NameTooLong)?,
-            };
-
-            <MusicStyles<T>>::insert(index, music_style);
-            <MusicStyleCount<T>>::put(index + 1);
-
-            Self::deposit_event(Event::Added(index));
-
-            Ok(())
-        }
-
-        #[pallet::weight(0)]
-        pub fn add_to_vec(origin: OriginFor<T>, name: Vec<u8>) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
             let name: BoundedVec<u8, T::NameMaxLength> =
@@ -193,30 +155,13 @@ pub mod pallet {
 
             <Styles<T>>::try_append(&name).map_err(|_| Error::<T>::StorageFull)?;
 
-            Self::deposit_event(Event::AddedVec(name.into()));
+            Self::deposit_event(Event::Added(name.into()));
 
             Ok(())
         }
 
         #[pallet::weight(0)]
-        pub fn remove(origin: OriginFor<T>, id: u32) -> DispatchResult {
-            T::AdminOrigin::ensure_origin(origin.clone())?;
-
-            ensure!(
-                <MusicStyles<T>>::contains_key(&id),
-                Error::<T>::StyleNotFound
-            );
-
-            <MusicStyles<T>>::remove(&id);
-            <MusicStyleCount<T>>::put(<MusicStyleCount<T>>::get() - 1);
-
-            Self::deposit_event(Event::Removed(id));
-
-            Ok(())
-        }
-
-        #[pallet::weight(0)]
-        pub fn remove_from_vec(origin: OriginFor<T>, name: Vec<u8>) -> DispatchResult {
+        pub fn remove(origin: OriginFor<T>, name: Vec<u8>) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
             let mut styles = <Styles<T>>::get();
@@ -232,7 +177,7 @@ pub mod pallet {
 
             <Styles<T>>::put(styles);
 
-            Self::deposit_event(Event::RemovedVec(removed.into()));
+            Self::deposit_event(Event::Removed(removed.into()));
 
             Ok(())
         }
