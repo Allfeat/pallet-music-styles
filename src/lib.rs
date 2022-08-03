@@ -9,34 +9,41 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-use frame_support::{traits::Contains, BoundedVec};
+mod functions;
+use frame_support::{pallet_prelude::*, traits::Contains, BoundedVec};
+use frame_system::pallet_prelude::*;
+pub use functions::*;
 pub use pallet::*;
+use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
-type Style<NameMaxLength> = BoundedVec<u8, NameMaxLength>;
+// Helper types
+pub type StyleName<T> = BoundedVec<u8, <T as Config>::NameMaxLength>;
+pub type SubList<T> = BoundedVec<StyleName<T>, <T as Config>::MaxSubStyles>;
 
-impl<T: Config> Contains<Vec<u8>> for Pallet<T> {
-    fn contains(name: &Vec<u8>) -> bool {
-        let bounded_name: BoundedVec<u8, T::NameMaxLength> = match name.clone().try_into() {
-            Ok(x) => x,
-            Err(_) => return false,
-        };
+impl<T: Config> Contains<StyleName<T>> for Pallet<T> {
+    fn contains(t: &StyleName<T>) -> bool {
+        let styles = <Styles<T>>::get();
 
-        Self::get().binary_search(&bounded_name).is_ok()
+        // Search in main styles
+        if styles.iter().find(|&s| s == t).is_some() {
+            return true;
+        }
+
+        // Search in sub-styles
+        for style in styles.iter() {
+            let sub = <SubStyles<T>>::get(style);
+            if sub.iter().find(|&s| s == t).is_some() {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use frame_support::pallet_prelude::*;
-    use frame_system::pallet_prelude::*;
-    use scale_info::TypeInfo;
-
-    /// Structure that holds the music style information that will be stored on-chain
-    #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-    pub struct MusicStyle<BoundedString> {
-        pub name: BoundedString,
-    }
 
     /// Configure the pallet by specifying the parameters and types on which it depends.
     #[pallet::config]
@@ -51,6 +58,10 @@ pub mod pallet {
         #[pallet::constant]
         type MaxStyles: Get<u32>;
 
+        /// The maximum length of a sub music style per style
+        #[pallet::constant]
+        type MaxSubStyles: Get<u32>;
+
         /// The maximum length of a music style name
         #[pallet::constant]
         type NameMaxLength: Get<u32>;
@@ -60,23 +71,29 @@ pub mod pallet {
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
-    // Note:
-    // - The outer BoundedVec could be replaced by a BoundedBTreeMap
-    // to quickly check for double and vec length
-    // - The inner BoundedVec (in Style) could be replaced by a
-    // BoundedString to simplify public API
     #[pallet::storage]
     #[pallet::getter(fn get)]
     pub(super) type Styles<T: Config> =
-        StorageValue<_, BoundedVec<Style<T::NameMaxLength>, T::MaxStyles>, ValueQuery>;
+        StorageValue<_, BoundedVec<StyleName<T>, T::MaxStyles>, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn get_sub_style)]
+    pub(super) type SubStyles<T: Config> = StorageMap<
+        _,
+        Twox64Concat,
+        StyleName<T>,
+        BoundedVec<StyleName<T>, T::MaxSubStyles>,
+        ValueQuery,
+    >;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// A new music style have been added
-        Added(Vec<u8>),
+        Added(Vec<u8>, Option<Vec<Vec<u8>>>),
         /// A music style have been removed
-        Removed(Vec<u8>),
+        /// The second parameter is the removed sub style count
+        Removed(Vec<u8>, u32),
     }
 
     #[pallet::error]
@@ -89,12 +106,14 @@ pub mod pallet {
         StyleNotFound,
         /// The music styles vec is full
         StorageFull,
+        /// There is a duplicate style name in the given list
+        DuplicatedStyle,
     }
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         /// The existing music styles at the genesis
-        pub styles: Vec<Vec<u8>>,
+        pub styles: Vec<(Vec<u8>, Vec<Vec<u8>>)>,
         // Note: Use phantom data because we need a Generic
         // in the GenesisConfig and BlockNumber impl Default
         pub phantom: T::BlockNumber,
@@ -114,70 +133,95 @@ pub mod pallet {
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
             // Note: use BTreeSet to quickly catch duplicates
-            use sp_std::collections::btree_set::BTreeSet;
+            let mut main_styles: BTreeSet<StyleName<T>> = BTreeSet::new();
 
-            // Fill <Styles<T>>: StorageValue<Vec<Style>>
-            let styles: Vec<BoundedVec<u8, T::NameMaxLength>> = self
-                .styles
-                .iter()
-                .map(|x| x.clone().try_into().expect("Music style name too long"))
-                .collect::<BTreeSet<BoundedVec<u8, T::NameMaxLength>>>()
-                .iter()
-                .cloned()
-                .collect();
+            for (input_name, input_sub_styles) in &self.styles {
+                let name: StyleName<T> =
+                    input_name.clone().try_into().expect("Style name too long");
 
-            let styles: BoundedVec<BoundedVec<u8, T::NameMaxLength>, T::MaxStyles> =
-                styles.try_into().expect("Too many music styles");
+                main_styles.insert(name.clone());
+
+                let sub_styles = input_sub_styles
+                    .iter()
+                    .map(|n| n.clone().try_into().expect("Sub style name too long"))
+                    .collect::<BTreeSet<StyleName<T>>>();
+
+                assert_eq!(
+                    input_sub_styles.len(),
+                    sub_styles.len(),
+                    "Music sub styles cannot contain duplicate names."
+                );
+
+                <SubStyles<T>>::insert(
+                    name,
+                    BoundedVec::try_from(btree_to_vec(sub_styles)).expect("Sub style max reached"),
+                );
+            }
 
             assert_eq!(
-                styles.len(),
                 self.styles.len(),
+                main_styles.len(),
                 "Music styles cannot contain duplicate names."
             );
 
-            <Styles<T>>::put(styles.clone());
+            <Styles<T>>::put(
+                BoundedVec::try_from(btree_to_vec(main_styles)).expect("Style max reached"),
+            );
         }
     }
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
+        /// Add a new style
+        /// Supports also sub styles
         #[pallet::weight(0)]
-        pub fn add(origin: OriginFor<T>, name: Vec<u8>) -> DispatchResult {
+        pub fn add(
+            origin: OriginFor<T>,
+            name: Vec<u8>,
+            sub: Option<Vec<Vec<u8>>>,
+        ) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
-            let name: BoundedVec<u8, T::NameMaxLength> =
-                name.try_into().map_err(|_| Error::<T>::NameTooLong)?;
+            let bounded_name = Self::unwrap_name(&name)?;
+            let bounded_sub = Self::unwrap_new_sub(&sub)?;
 
             ensure!(
-                !<Styles<T>>::get().contains(&name),
+                !<Styles<T>>::get().contains(&bounded_name),
                 Error::<T>::NameAlreadyExists
             );
 
-            <Styles<T>>::try_append(&name).map_err(|_| Error::<T>::StorageFull)?;
+            <Styles<T>>::try_append(&bounded_name).map_err(|_| Error::<T>::StorageFull)?;
+            <SubStyles<T>>::insert(bounded_name, &bounded_sub);
 
-            Self::deposit_event(Event::Added(name.into()));
+            Self::deposit_event(Event::Added(name, sub));
 
             Ok(())
         }
 
+        /// Remove a style and its own sub styles
         #[pallet::weight(0)]
         pub fn remove(origin: OriginFor<T>, name: Vec<u8>) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
+            // Find all related style and sub-styles
+            let bounded_name = Self::unwrap_name(&name)?;
             let mut styles = <Styles<T>>::get();
+            let sub_styles =
+                <SubStyles<T>>::try_get(&bounded_name).map_err(|_| Error::<T>::StyleNotFound)?;
 
-            let name: BoundedVec<u8, T::NameMaxLength> =
-                name.try_into().map_err(|_| Error::<T>::NameTooLong)?;
-
+            // Search into <Style<T>> instead of Pallet::contains to
+            // search into the first level styles only
             let position = styles
-                .binary_search(&name)
+                .binary_search(&bounded_name)
                 .map_err(|_| Error::<T>::StyleNotFound)?;
+
+            <SubStyles<T>>::remove(bounded_name);
 
             let removed = styles.remove(position);
 
             <Styles<T>>::put(styles);
 
-            Self::deposit_event(Event::Removed(removed.into()));
+            Self::deposit_event(Event::Removed(removed.into(), sub_styles.len() as u32));
 
             Ok(())
         }

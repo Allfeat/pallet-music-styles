@@ -62,6 +62,7 @@ impl frame_system::Config for Test {
 
 parameter_types! {
     pub const MaxStyles: u32 = 5;
+    pub const MaxSubStyles: u32 = 5;
     pub const NameMaxLength: u32 = 20;
 }
 
@@ -69,6 +70,7 @@ impl pallet_music_styles::Config for Test {
     type Event = Event;
     type AdminOrigin = EnsureRoot<AccountId>;
     type MaxStyles = MaxStyles;
+    type MaxSubStyles = MaxSubStyles;
     type NameMaxLength = NameMaxLength;
 }
 
@@ -80,10 +82,11 @@ pub(crate) fn new_test_ext(include_genesis: bool) -> sp_io::TestExternalities {
 
     let pallet_config: pallet_music_styles::GenesisConfig<Test> = match include_genesis {
         true => pallet_music_styles::GenesisConfig {
-            styles: ["Reggae", "Rock", "Rap", "Pop"]
-                .iter()
-                .map(|style| style.as_bytes().to_vec())
-                .collect(),
+            styles: vec![
+                create_style("Reggae", vec![]),
+                create_style("Rap", vec!["Drill", "Trap"]),
+                create_style("Rock", vec![]),
+            ],
             phantom: Default::default(),
         },
         false => pallet_music_styles::GenesisConfig::default(),
@@ -95,4 +98,13 @@ pub(crate) fn new_test_ext(include_genesis: bool) -> sp_io::TestExternalities {
 
     ext.execute_with(|| System::set_block_number(1));
     ext
+}
+
+// Helpers to add styles in a human friendly fashion
+pub fn create_style(name: &str, children: Vec<&str>) -> (Vec<u8>, Vec<Vec<u8>>) {
+    let to_style = |name: &str| name.as_bytes().to_vec();
+    let to_sub_styles =
+        |names: Vec<&str>| names.iter().map(|t| to_style(t)).collect::<Vec<Vec<u8>>>();
+
+    (to_style(name), to_sub_styles(children))
 }
