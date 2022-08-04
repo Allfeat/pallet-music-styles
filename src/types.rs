@@ -1,25 +1,77 @@
 use super::*;
-use frame_support::{dispatch::PartialEq, pallet_prelude::*};
+
+use codec::{Decode, Encode, MaxEncodedLen};
+use frame_support::{traits::ConstU32, BoundedVec};
 use scale_info::TypeInfo;
-use sp_runtime::traits::Get;
-use sp_std::convert::TryFrom;
+use sp_runtime::RuntimeDebug;
+use sp_std::{convert::TryInto, prelude::*};
+
+// Helper types
+pub type BoundedName<T> = BoundedVec<u8, <T as Config>::NameMaxLength>;
+pub type BoundedNameList<T> = BoundedVec<BoundedName<T>, <T as Config>::MaxSubStyles>;
+pub type BoundedStyleList<T> =
+    BoundedVec<Style<BoundedName<T>, BoundedNameList<T>>, <T as Config>::MaxStyles>;
+
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct Style<BoundedName, BoundedSubStyles> {
+    pub name: BoundedName,
+    pub sub_styles: BoundedSubStyles,
+}
+
+// impl<BoundedName, BoundedNameList> Style<BoundedName, BoundedNameList>
+// where
+//     BoundedName: From<std::vec::Vec<u8>>,
+//     BoundedNameList: From<std::vec::Vec<Vec<u8>>>,
+// {
+//     fn new(name: Vec<u8>, sub_styles: Option<Vec<Vec<u8>>>) -> Self {
+//         let name: BoundedName = b"".to_vec().try_into().expect("msg");
+//         let sub_styles: BoundedNameList = match sub_styles {
+//             Some(names) => {
+//                 let name_vec: Vec<BoundedName> = names
+//                     .iter()
+//                     .map(|&name| name.clone().try_into().expect("msg"))
+//                     .collect::<Vec<BoundedName>>();
+
+//                 BoundedVec::try_from(name_vec).expect("msg")
+//             }
+//             None => BoundedVec::try_from(Vec::new()).expect("msg"),
+//         };
+
+//         Style {
+//             name,
+//             sub_styles: Vec::from(b"".to_vec().try_into::<BoundedName>().expect("msg"))
+//                 .try_into()
+//                 .expect("msg"),
+//         }
+//     }
+
+//     fn contains(t: &BoundedName) -> bool {
+//         true
+//     }
+// }
+
+// impl<T: crate::pallet::Config> Contains<BoundedName<T>> for Style<BoundedName<T>, BoundedNameList<T>> {
+//     fn contains(t: &BoundedName<T>) -> bool {
+//         true
+//     }
+// }
 
 // Music style name struct
 // =======================
 
 // #[derive(Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo, Clone)]
-// pub struct StyleName<NameMaxLength>(BoundedVec<u8, NameMaxLength>);
+// pub struct BoundedName<NameMaxLength>(BoundedVec<u8, NameMaxLength>);
 
-// impl<NameMaxLength: Get<u32>> TryFrom<Vec<u8>> for StyleName<NameMaxLength> {
+// impl<NameMaxLength: Get<u32>> TryFrom<Vec<u8>> for BoundedName<NameMaxLength> {
 //     type Error = ();
 
 //     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
 //         let name: BoundedVec<u8, NameMaxLength> = value.try_into()?;
-//         Ok(StyleName(name))
+//         Ok(BoundedName(name))
 //     }
 // }
 
-// impl<NameMaxLength: Get<u32>> PartialEq for StyleName<NameMaxLength> {
+// impl<NameMaxLength: Get<u32>> PartialEq for BoundedName<NameMaxLength> {
 //     fn eq(&self, other: &Self) -> bool {
 //         self.0 == other.0
 //     }
@@ -28,13 +80,13 @@ use sp_std::convert::TryFrom;
 // Sub music style list struct
 // ==========================
 // #[derive(Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo, Clone)]
-// pub struct SubStyleList<NameMaxLength, MaxSubStyles>(
-//     BoundedVec<StyleName<NameMaxLength>, MaxSubStyles>,
+// pub struct SubBoundedStyleList<NameMaxLength, MaxSubStyles>(
+//     BoundedVec<BoundedName<NameMaxLength>, MaxSubStyles>,
 // );
 
-// Try to create a SubStyleList from a vec of names (vec<u8>)
+// Try to create a SubBoundedStyleList from a vec of names (vec<u8>)
 // impl<NameMaxLength, MaxSubStyles> TryFrom<Vec<Vec<u8>>>
-//     for SubStyleList<NameMaxLength, MaxSubStyles>
+//     for SubBoundedStyleList<NameMaxLength, MaxSubStyles>
 // where
 //     NameMaxLength: Get<u32>,
 //     MaxSubStyles: Get<u32>,
@@ -44,25 +96,25 @@ use sp_std::convert::TryFrom;
 //     fn try_from(value: Vec<Vec<u8>>) -> Result<Self, Self::Error> {
 //         let vec = Vec::new();
 //         for name in value {
-//             let name = StyleName::<NameMaxLength>::try_from(name)?;
+//             let name = BoundedName::<NameMaxLength>::try_from(name)?;
 //             vec.push(name);
 //         }
 
-//         let styles = BoundedVec::<StyleName<NameMaxLength>, MaxSubStyles>::try_from(vec)?;
+//         let styles = BoundedVec::<BoundedName<NameMaxLength>, MaxSubStyles>::try_from(vec)?;
 
-//         Ok(SubStyleList(styles))
+//         Ok(SubBoundedStyleList(styles))
 //     }
 // }
 
 // Note: The substrate version of Contains is made for work with on-chain storage
 // and don't have `self` in its function signature.
 // Here we need it and it's for that we don't impl Contains trait
-// impl<NameMaxLength, MaxSubStyles> SubStyleList<NameMaxLength, MaxSubStyles>
+// impl<NameMaxLength, MaxSubStyles> SubBoundedStyleList<NameMaxLength, MaxSubStyles>
 // where
 //     NameMaxLength: Get<u32>,
 //     MaxSubStyles: Get<u32>,
 // {
-//     fn contains(&self, t: &StyleName<NameMaxLength>) -> bool {
+//     fn contains(&self, t: &BoundedName<NameMaxLength>) -> bool {
 //         self.0.iter().find(|&item| item == t).is_some()
 //     }
 // }
@@ -71,28 +123,28 @@ use sp_std::convert::TryFrom;
 // =======================
 
 // TODO: Manually impl Clone, Eq, From, PartialEq for this type
-/// Structure that holds the music style information that will be stored on-chain
+// Structure that holds the music style information that will be stored on-chain
 // #[derive(Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 // pub struct Style<NameMaxLength, MaxSubStyles> {
 //     pub name: BoundedVec<u8, NameMaxLength>,
 //     pub children: BoundedVec<BoundedVec<u8, NameMaxLength>, MaxSubStyles>,
 // }
 
-// /// Create a Style from a StyleName and a SubStyleList
+// /// Create a Style from a BoundedName and a SubBoundedStyleList
 // impl<NameMaxLength, MaxSubStyles> Style<NameMaxLength, MaxSubStyles>
 // where
 //     NameMaxLength: Get<u32>,
 //     MaxSubStyles: Get<u32>,
 // {
 //     fn new(
-//         name: StyleName<NameMaxLength>,
-//         children: SubStyleList<NameMaxLength, MaxSubStyles>,
+//         name: BoundedName<NameMaxLength>,
+//         children: SubBoundedStyleList<NameMaxLength, MaxSubStyles>,
 //     ) -> Self {
 //         Self { name, children }
 //     }
 
 //     // Search in the style name itself as well in the sub styles
-//     fn contains(&self, t: &StyleName<NameMaxLength>) -> bool {
+//     fn contains(&self, t: &BoundedName<NameMaxLength>) -> bool {
 //         if &self.name == t {
 //             return true;
 //         }
@@ -104,7 +156,7 @@ use sp_std::convert::TryFrom;
 // }
 
 // /// Create a Style from a name with an empty sub style list
-// impl<NameMaxLength, MaxSubStyles> TryFrom<StyleName<NameMaxLength>>
+// impl<NameMaxLength, MaxSubStyles> TryFrom<BoundedName<NameMaxLength>>
 //     for Style<NameMaxLength, MaxSubStyles>
 // where
 //     NameMaxLength: Get<u32>,
@@ -112,10 +164,10 @@ use sp_std::convert::TryFrom;
 // {
 //     type Error = ();
 
-//     fn try_from(value: StyleName<NameMaxLength>) -> Result<Self, Self::Error> {
+//     fn try_from(value: BoundedName<NameMaxLength>) -> Result<Self, Self::Error> {
 //         let style = Self {
 //             name: value,
-//             children: SubStyleList::try_from(Vec::from(Vec::new()))?,
+//             children: SubBoundedStyleList::try_from(Vec::from(Vec::new()))?,
 //         };
 
 //         Ok(style)
@@ -125,17 +177,17 @@ use sp_std::convert::TryFrom;
 // Main music style struct as a list
 // =================================
 // #[derive(Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-// pub struct StyleList<NameMaxLength, MaxSubStyles, MaxStyles>(
+// pub struct BoundedStyleList<NameMaxLength, MaxSubStyles, MaxStyles>(
 //     BoundedVec<Style<NameMaxLength, MaxSubStyles>, MaxStyles>,
 // );
 
-// impl<NameMaxLength, MaxSubStyles, MaxStyles> StyleList<NameMaxLength, MaxSubStyles, MaxStyles>
+// impl<NameMaxLength, MaxSubStyles, MaxStyles> BoundedStyleList<NameMaxLength, MaxSubStyles, MaxStyles>
 // where
 //     NameMaxLength: Get<u32>,
 //     MaxSubStyles: Get<u32>,
 //     MaxStyles: Get<u32>,
 // {
-//     fn contains(&self, t: &StyleName<NameMaxLength>) -> bool {
+//     fn contains(&self, t: &BoundedName<NameMaxLength>) -> bool {
 //         self.0.iter().find(|&item| item.contains(t)).is_some()
 //     }
 // }

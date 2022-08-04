@@ -16,6 +16,12 @@ fn generate_random_string(length: usize) -> String {
     result
 }
 
+fn generate_random_name(i: u32) -> Vec<u8> {
+    let mut name = generate_random_string(10).as_bytes().to_vec();
+    name.push((i % 256) as u8);
+    name
+}
+
 /// Panic is the given event is different that the last emitted event
 fn assert_last_event(event: super::Event<Test>) {
     System::assert_last_event(mock::Event::MusicStylesPallet(event))
@@ -25,7 +31,7 @@ fn assert_last_event(event: super::Event<Test>) {
 fn test_genesis() {
     new_test_ext(true).execute_with(|| {
         for entry in &["Reggae", "Rap", "Drill", "Trap", "Rock"] {
-            let name: StyleName<Test> = entry.as_bytes().to_vec().try_into().unwrap();
+            let name: BoundedName<Test> = entry.as_bytes().to_vec().try_into().unwrap();
             assert!(MusicStylesPallet::contains(&name));
         }
 
@@ -71,20 +77,22 @@ mod add {
     #[test]
     fn should_fail_before_exceeded_main_storage_bound() {
         new_test_ext(false).execute_with(|| {
-            let get_name = |i: u32| {
-                let mut name = generate_random_string(10).as_bytes().to_vec();
-                name.push((i % 256) as u8);
-                name
-            };
-
             // Fill the storage
             for i in 0..MaxStyles::get() {
-                assert_ok!(MusicStylesPallet::add(Origin::root(), get_name(i), None));
+                assert_ok!(MusicStylesPallet::add(
+                    Origin::root(),
+                    generate_random_name(i),
+                    None
+                ));
             }
 
             // One more should fail
             assert_noop!(
-                MusicStylesPallet::add(Origin::root(), get_name(MaxStyles::get()), None),
+                MusicStylesPallet::add(
+                    Origin::root(),
+                    generate_random_name(MaxStyles::get()),
+                    None
+                ),
                 Error::<Test>::StorageFull
             );
         });
@@ -93,16 +101,10 @@ mod add {
     #[test]
     fn should_fail_before_exceeded_sub_storage_bound() {
         new_test_ext(false).execute_with(|| {
-            let get_name = |i: u32| {
-                let mut name = generate_random_string(10).as_bytes().to_vec();
-                name.push((i % 256) as u8);
-                name
-            };
-
             // Create sub style vec with too many items
             let mut sub = vec![];
             for i in 0..MaxSubStyles::get() + 2 {
-                sub.push(get_name(i));
+                sub.push(generate_random_name(i));
             }
 
             assert_noop!(
@@ -115,8 +117,8 @@ mod add {
     #[test]
     fn add_should_mutate_chain_and_emit_event() {
         new_test_ext(false).execute_with(|| {
-            let name = generate_random_string(10).as_bytes().to_vec();
-            let sub_name = generate_random_string(8).as_bytes().to_vec();
+            let name = generate_random_name(1);
+            let sub_name = generate_random_name(2);
             let sub = Some(Vec::from([sub_name.clone()]));
 
             assert_ok!(MusicStylesPallet::add(
@@ -154,7 +156,7 @@ mod remove {
 
     #[test]
     fn cannot_remove_an_unexistising_id() {
-        new_test_ext(false).execute_with(|| {
+        new_test_ext(true).execute_with(|| {
             assert_noop!(
                 MusicStylesPallet::remove(Origin::root(), b"unexistising".to_vec()),
                 Error::<Test>::StyleNotFound
@@ -184,7 +186,7 @@ mod remove {
             assert_eq!(MusicStylesPallet::get().len(), initial_count - 1);
 
             // Check that the event has been called
-            assert_last_event(Removed(name, 2));
+            assert_last_event(Removed(name));
         });
     }
 }
