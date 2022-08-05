@@ -9,8 +9,8 @@ use sp_std::prelude::*;
 // Helper types
 pub type BoundedName<T> = BoundedVec<u8, <T as Config>::NameMaxLength>;
 pub type BoundedNameList<T> = BoundedVec<BoundedName<T>, <T as Config>::MaxSubStyles>;
-pub type BoundedStyleList<T> =
-    BoundedVec<Style<BoundedName<T>, BoundedNameList<T>>, <T as Config>::MaxStyles>;
+pub type StyleType<T> = Style<BoundedName<T>, BoundedNameList<T>>;
+pub type BoundedStyleList<T> = BoundedVec<StyleType<T>, <T as Config>::MaxStyles>;
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct Style<BoundedName, BoundedSubStyles> {

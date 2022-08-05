@@ -284,3 +284,90 @@ mod remove {
         });
     }
 }
+
+mod remove_sub_style {
+    use super::*;
+
+    #[test]
+    fn non_admin_cannot_remove_sub_style() {
+        new_test_ext(true).execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::remove_sub_style(
+                    Origin::signed(BOB),
+                    b"Rap".to_vec(),
+                    b"Test".to_vec()
+                ),
+                BadOrigin
+            );
+        });
+    }
+
+    #[test]
+    fn cannot_remove_an_unexistising_parent_id() {
+        new_test_ext(true).execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::remove_sub_style(
+                    Origin::root(),
+                    b"Unexistising".to_vec(),
+                    b"Test".to_vec()
+                ),
+                Error::<Test>::StyleNotFound
+            );
+        });
+    }
+
+    #[test]
+    fn cannot_remove_an_unexistising_sub_id() {
+        new_test_ext(true).execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::remove_sub_style(
+                    Origin::root(),
+                    b"Rap".to_vec(),
+                    b"Unexistising".to_vec()
+                ),
+                Error::<Test>::SubStyleNotFound
+            );
+        });
+    }
+
+    #[test]
+    fn remove_should_mutate_chain_and_emit_event() {
+        new_test_ext(true).execute_with(|| {
+            let sub_name = b"Drill".to_vec();
+            let parent_name = b"Rap".to_vec();
+
+            let bounded_sub_name: BoundedName<Test> = sub_name.clone().try_into().unwrap();
+            let bounded_parent_name: BoundedName<Test> = parent_name.clone().try_into().unwrap();
+
+            let styles = MusicStylesPallet::get();
+
+            let sub_style = styles
+                .iter()
+                .find(|&s| s.name == bounded_parent_name)
+                .unwrap();
+
+            let initial_sub_count = sub_style.sub_styles.len();
+
+            assert_ok!(MusicStylesPallet::remove_sub_style(
+                Origin::root(),
+                parent_name.clone(),
+                sub_name.clone()
+            ),);
+
+            // Parent is unchanged
+            assert!(MusicStylesPallet::contains(&bounded_parent_name));
+
+            // sub style is removed
+            assert!(!MusicStylesPallet::contains(&bounded_sub_name));
+            let updated_sub_style = MusicStylesPallet::get();
+            let updated_sub_style = updated_sub_style
+                .iter()
+                .find(|&s| s.name == bounded_parent_name)
+                .unwrap();
+            assert_eq!(updated_sub_style.sub_styles.len(), initial_sub_count - 1);
+
+            // Check that the event has been called
+            assert_last_event(SubStyleRemoved(parent_name, sub_name));
+        });
+    }
+}

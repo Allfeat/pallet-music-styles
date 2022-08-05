@@ -66,6 +66,8 @@ pub mod pallet {
         SubStyleAdded(Vec<u8>, Vec<u8>),
         /// A music style have been removed
         Removed(Vec<u8>),
+        /// A sub style have been removed from parent (parent, sub_style)
+        SubStyleRemoved(Vec<u8>, Vec<u8>),
     }
 
     #[pallet::error]
@@ -76,6 +78,9 @@ pub mod pallet {
         NameAlreadyExists,
         /// Music style not found
         StyleNotFound,
+        /// Music sub style not found
+        /// Can be used for all sub styles as well as from parent style
+        SubStyleNotFound,
         /// The music styles vec is full
         StylesCapacity,
         /// There is a duplicate style name in the given list
@@ -183,24 +188,18 @@ pub mod pallet {
             let bounded_parent = Self::unwrap_name(&parent)?;
 
             <Styles<T>>::try_mutate(|styles| -> DispatchResult {
-                if let Some(index) = styles.iter().position(|style| style.name == bounded_parent) {
-                    let style = styles
-                        .get_mut(index)
-                        .ok_or_else(|| Error::<T>::StyleNotFound)?;
+                let style = Self::try_get_mut_style(&bounded_parent, styles)?;
 
-                    if style.sub_styles.contains(&bounded_name) {
-                        return Err(Error::<T>::NameAlreadyExists)?;
-                    }
-
-                    style
-                        .sub_styles
-                        .try_push(bounded_name)
-                        .map_err(|_| Error::<T>::StylesCapacity)?;
-
-                    Ok(())
-                } else {
-                    Err(Error::<T>::StyleNotFound.into())
+                if style.sub_styles.contains(&bounded_name) {
+                    return Err(Error::<T>::NameAlreadyExists)?;
                 }
+
+                style
+                    .sub_styles
+                    .try_push(bounded_name)
+                    .map_err(|_| Error::<T>::StylesCapacity)?;
+
+                Ok(())
             })?;
 
             Self::deposit_event(Event::SubStyleAdded(parent, name));
@@ -226,6 +225,37 @@ pub mod pallet {
 
             Self::deposit_event(Event::Removed(name));
 
+            Ok(())
+        }
+
+        /// Remove a sub style for a given parent style
+        #[pallet::weight(0)]
+        pub fn remove_sub_style(
+            origin: OriginFor<T>,
+            parent: Vec<u8>,
+            name: Vec<u8>,
+        ) -> DispatchResult {
+            T::AdminOrigin::ensure_origin(origin.clone())?;
+            let bounded_name = Self::unwrap_name(&name)?;
+            let bounded_parent = Self::unwrap_name(&parent)?;
+
+            <Styles<T>>::try_mutate(|styles| -> DispatchResult {
+                let style = Self::try_get_mut_style(&bounded_parent, styles)?;
+
+                if let Some(sub_index) = style
+                    .sub_styles
+                    .iter()
+                    .position(|sub_style| sub_style == &bounded_name)
+                {
+                    style.sub_styles.remove(sub_index);
+                } else {
+                    return Err(Error::<T>::SubStyleNotFound.into());
+                };
+
+                Ok(())
+            })?;
+
+            Self::deposit_event(Event::SubStyleRemoved(parent, name));
             Ok(())
         }
     }
