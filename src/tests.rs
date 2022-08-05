@@ -93,7 +93,7 @@ mod add {
                     generate_random_name(MaxStyles::get()),
                     None
                 ),
-                Error::<Test>::StorageFull
+                Error::<Test>::StylesCapacity
             );
         });
     }
@@ -109,7 +109,7 @@ mod add {
 
             assert_noop!(
                 MusicStylesPallet::add(Origin::root(), b"Test".to_vec(), Some(sub)),
-                Error::<Test>::StorageFull
+                Error::<Test>::StylesCapacity
             );
         });
     }
@@ -136,7 +136,101 @@ mod add {
             ));
 
             // Check that the event has been called
-            assert_last_event(Added(name, sub));
+            assert_last_event(StyleAdded(name, sub));
+        });
+    }
+}
+
+mod add_sub_style {
+    use super::*;
+
+    #[test]
+    fn non_admin_cannot_add_sub_style() {
+        new_test_ext(true).execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::add_sub_style(
+                    Origin::signed(BOB),
+                    b"Rap".to_vec(),
+                    b"New".to_vec()
+                ),
+                BadOrigin
+            );
+        });
+    }
+
+    #[test]
+    fn cannot_add_existing_sub_style() {
+        new_test_ext(true).execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::add_sub_style(
+                    Origin::root(),
+                    b"Rap".to_vec(),
+                    b"Drill".to_vec()
+                ),
+                Error::<Test>::NameAlreadyExists
+            );
+        });
+    }
+
+    #[test]
+    fn cannot_add_style_to_unexistising_parent_style() {
+        new_test_ext(true).execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::add_sub_style(
+                    Origin::root(),
+                    b"Unexistising".to_vec(),
+                    b"Electro".to_vec()
+                ),
+                Error::<Test>::StyleNotFound
+            );
+        });
+    }
+
+    #[test]
+    fn add_style_should_not_exceeds_capacity() {
+        // The "Reggae" parent style is empty
+        new_test_ext(true).execute_with(|| {
+            // Fill the storage
+            for i in 0..MaxSubStyles::get() {
+                assert_ok!(MusicStylesPallet::add_sub_style(
+                    Origin::root(),
+                    b"Reggae".to_vec(),
+                    generate_random_name(i)
+                ));
+            }
+
+            // One more should fail
+            assert_noop!(
+                MusicStylesPallet::add_sub_style(
+                    Origin::root(),
+                    b"Reggae".to_vec(),
+                    b"Too much".to_vec()
+                ),
+                Error::<Test>::StylesCapacity
+            );
+        });
+    }
+
+    #[test]
+    fn add_sub_style_should_mutate_chain_and_emit_event() {
+        // The "Reggae" parent style is empty
+        new_test_ext(true).execute_with(|| {
+            assert_ok!(MusicStylesPallet::add_sub_style(
+                Origin::root(),
+                b"Reggae".to_vec(),
+                b"Victory".to_vec()
+            ));
+
+            // Check that the storage have been updated
+            assert!(MusicStylesPallet::contains(
+                &b"Reggae".to_vec().clone().try_into().unwrap()
+            ));
+            assert!(MusicStylesPallet::contains(
+                &b"Victory".to_vec().clone().try_into().unwrap()
+            ));
+
+            // Check that the event has been called
+            assert_last_event(SubStyleAdded(b"Reggae".to_vec(), b"Victory".to_vec()));
         });
     }
 }

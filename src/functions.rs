@@ -63,7 +63,7 @@ impl<T: Config> Pallet<T> {
 
     fn create_empty_sub_list() -> Result<BoundedNameList<T>, DispatchError> {
         let empty_vec = Vec::from(Vec::new());
-        Ok(BoundedVec::try_from(empty_vec).map_err(|_| Error::<T>::StorageFull)?)
+        Ok(BoundedVec::try_from(empty_vec).map_err(|_| Error::<T>::StylesCapacity)?)
     }
 
     pub fn unwrap_new_sub(
@@ -85,6 +85,6 @@ impl<T: Config> Pallet<T> {
             return Err(Error::<T>::DuplicatedStyle)?;
         }
 
-        Ok(BoundedVec::try_from(btree_to_vec(btree)).map_err(|_| Error::<T>::StorageFull)?)
+        Ok(BoundedVec::try_from(btree_to_vec(btree)).map_err(|_| Error::<T>::StylesCapacity)?)
     }
 }

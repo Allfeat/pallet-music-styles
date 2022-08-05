@@ -61,7 +61,9 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// A new music style have been added
-        Added(Vec<u8>, Option<Vec<Vec<u8>>>),
+        StyleAdded(Vec<u8>, Option<Vec<Vec<u8>>>),
+        /// A new sub style have been added to parent (parent, new_sub_style)
+        SubStyleAdded(Vec<u8>, Vec<u8>),
         /// A music style have been removed
         Removed(Vec<u8>),
     }
@@ -75,7 +77,7 @@ pub mod pallet {
         /// Music style not found
         StyleNotFound,
         /// The music styles vec is full
-        StorageFull,
+        StylesCapacity,
         /// There is a duplicate style name in the given list
         DuplicatedStyle,
     }
@@ -162,9 +164,46 @@ pub mod pallet {
                 sub_styles: bounded_sub,
             };
 
-            <Styles<T>>::try_append(style).map_err(|_| Error::<T>::StorageFull)?;
+            <Styles<T>>::try_append(style).map_err(|_| Error::<T>::StylesCapacity)?;
 
-            Self::deposit_event(Event::Added(name, sub));
+            Self::deposit_event(Event::StyleAdded(name, sub));
+
+            Ok(())
+        }
+
+        #[pallet::weight(0)]
+        pub fn add_sub_style(
+            origin: OriginFor<T>,
+            parent: Vec<u8>,
+            name: Vec<u8>,
+        ) -> DispatchResult {
+            T::AdminOrigin::ensure_origin(origin.clone())?;
+
+            let bounded_name = Self::unwrap_name(&name)?;
+            let bounded_parent = Self::unwrap_name(&parent)?;
+
+            <Styles<T>>::try_mutate(|styles| -> DispatchResult {
+                if let Some(index) = styles.iter().position(|style| style.name == bounded_parent) {
+                    let style = styles
+                        .get_mut(index)
+                        .ok_or_else(|| Error::<T>::StyleNotFound)?;
+
+                    if style.sub_styles.contains(&bounded_name) {
+                        return Err(Error::<T>::NameAlreadyExists)?;
+                    }
+
+                    style
+                        .sub_styles
+                        .try_push(bounded_name)
+                        .map_err(|_| Error::<T>::StylesCapacity)?;
+
+                    Ok(())
+                } else {
+                    Err(Error::<T>::StyleNotFound.into())
+                }
+            })?;
+
+            Self::deposit_event(Event::SubStyleAdded(parent, name));
 
             Ok(())
         }
