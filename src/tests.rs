@@ -187,6 +187,31 @@ mod add_sub_style {
     }
 
     #[test]
+    fn too_long_style_name_should_fail() {
+        new_test_ext(false).execute_with(|| {
+            let long_name = generate_random_string((NameMaxLength::get() as usize) + 10)
+                .as_bytes()
+                .to_vec();
+
+            // Too long main style name
+            assert_noop!(
+                MusicStylesPallet::add_sub_style(
+                    Origin::root(),
+                    b"Reggae".to_vec(),
+                    long_name.clone(),
+                ),
+                Error::<Test>::NameTooLong
+            );
+
+            // Too long name in sub style
+            assert_noop!(
+                MusicStylesPallet::add_sub_style(Origin::root(), b"Reggae".to_vec(), long_name),
+                Error::<Test>::NameTooLong
+            );
+        });
+    }
+
+    #[test]
     fn add_style_should_not_exceeds_capacity() {
         // The "Reggae" parent style is empty
         new_test_ext(true).execute_with(|| {
@@ -231,6 +256,91 @@ mod add_sub_style {
 
             // Check that the event has been called
             assert_last_event(SubStyleAdded(b"Reggae".to_vec(), b"Victory".to_vec()));
+        });
+    }
+}
+
+mod update_style_name {
+    use super::*;
+
+    #[test]
+    fn non_admin_cannot_update_style() {
+        new_test_ext(true).execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::update_style_name(
+                    Origin::signed(BOB),
+                    b"Reggae".to_vec(),
+                    b"Pop".to_vec()
+                ),
+                BadOrigin
+            );
+        });
+    }
+
+    #[test]
+    fn cannot_update_unexistising_style() {
+        new_test_ext(true).execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::update_style_name(
+                    Origin::root(),
+                    b"Unexistising".to_vec(),
+                    b"Pop".to_vec()
+                ),
+                Error::<Test>::StyleNotFound
+            );
+        });
+    }
+
+    #[test]
+    fn cannot_update_style_with_existing_style_name() {
+        new_test_ext(true).execute_with(|| {
+            assert_noop!(
+                MusicStylesPallet::update_style_name(
+                    Origin::root(),
+                    b"Reggae".to_vec(),
+                    b"Rap".to_vec()
+                ),
+                Error::<Test>::NameAlreadyExists
+            );
+        });
+    }
+
+    #[test]
+    fn cannot_update_with_too_long_style_name() {
+        new_test_ext(true).execute_with(|| {
+            let long_name = generate_random_string((NameMaxLength::get() as usize) + 10)
+                .as_bytes()
+                .to_vec();
+
+            // Too long main style name
+            assert_noop!(
+                MusicStylesPallet::update_style_name(
+                    Origin::root(),
+                    b"Reggae".to_vec(),
+                    long_name.clone(),
+                ),
+                Error::<Test>::NameTooLong
+            );
+        });
+    }
+
+    #[test]
+    fn update_style_should_mutate_chain_and_emit_event() {
+        new_test_ext(true).execute_with(|| {
+            assert_ok!(MusicStylesPallet::update_style_name(
+                Origin::root(),
+                b"Reggae".to_vec(),
+                b"Relax".to_vec(),
+            ));
+
+            assert!(!MusicStylesPallet::contains(
+                &b"Reggae".to_vec().try_into().unwrap()
+            ));
+            assert!(MusicStylesPallet::contains(
+                &b"Relax".to_vec().try_into().unwrap()
+            ));
+
+            assert_last_event(StyleNameUpdated(b"Reggae".to_vec(), b"Relax".to_vec()));
         });
     }
 }

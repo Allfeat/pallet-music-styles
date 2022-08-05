@@ -60,13 +60,15 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// A new music style have been added
+        /// A new music style has been added
         StyleAdded(Vec<u8>, Option<Vec<Vec<u8>>>),
-        /// A new sub style have been added to parent (parent, new_sub_style)
+        /// A new sub style has been added to parent (parent, new_sub_style)
         SubStyleAdded(Vec<u8>, Vec<u8>),
-        /// A music style have been removed
+        /// A style name has been updated (old, new)
+        StyleNameUpdated(Vec<u8>, Vec<u8>),
+        /// A music style has been removed
         Removed(Vec<u8>),
-        /// A sub style have been removed from parent (parent, sub_style)
+        /// A sub style has been removed from parent (parent, sub_style)
         SubStyleRemoved(Vec<u8>, Vec<u8>),
     }
 
@@ -203,6 +205,34 @@ pub mod pallet {
             })?;
 
             Self::deposit_event(Event::SubStyleAdded(parent, name));
+
+            Ok(())
+        }
+
+        #[pallet::weight(0)]
+        pub fn update_style_name(
+            origin: OriginFor<T>,
+            old_name: Vec<u8>,
+            new_name: Vec<u8>,
+        ) -> DispatchResult {
+            T::AdminOrigin::ensure_origin(origin.clone())?;
+
+            let bounded_old = Self::unwrap_name(&old_name)?;
+            let bounded_new = Self::unwrap_name(&new_name)?;
+
+            <Styles<T>>::try_mutate(|styles| -> DispatchResult {
+                if Self::get_style_position(&bounded_new, styles).is_some() {
+                    return Err(Error::<T>::NameAlreadyExists)?;
+                }
+
+                let style = Self::try_get_mut_style(&bounded_old, styles)?;
+
+                style.name = bounded_new;
+
+                Ok(())
+            })?;
+
+            Self::deposit_event(Event::StyleNameUpdated(old_name, new_name));
 
             Ok(())
         }

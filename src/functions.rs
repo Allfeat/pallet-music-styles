@@ -54,15 +54,20 @@ impl<T: Config> Pallet<T> {
     //     }
     // }
 
+    pub fn get_style_position(
+        name: &BoundedName<T>,
+        styles: &BoundedStyleList<T>,
+    ) -> Option<usize> {
+        styles.iter().position(|style| &style.name == name)
+    }
+
     /// Returns a mut ref to Style or throw Error
     pub fn try_get_mut_style<'a>(
         name: &BoundedName<T>,
         styles: &'a mut BoundedStyleList<T>,
     ) -> Result<&'a mut StyleType<T>, DispatchError> {
-        let index = styles
-            .iter()
-            .position(|style| &style.name == name)
-            .ok_or_else(|| Error::<T>::StyleNotFound)?;
+        let index =
+            Self::get_style_position(name, styles).ok_or_else(|| Error::<T>::StyleNotFound)?;
 
         let style = styles
             .get_mut(index)
