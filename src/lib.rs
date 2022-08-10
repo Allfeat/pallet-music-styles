@@ -83,10 +83,6 @@ pub mod pallet {
         StyleNotFound,
         /// The music styles vec is full
         StylesCapacity,
-        /// There is a duplicate style name in the given list
-        DuplicatedStyle,
-        /// Something goes wrong when updating on-chain data
-        MutationError,
     }
 
     #[pallet::genesis_config]
@@ -114,7 +110,7 @@ pub mod pallet {
             let mut styles: BoundedStyleList<T> = BoundedVec::try_from(Vec::new()).unwrap();
 
             for (input_name, input_sub_styles) in &self.styles {
-                let style = Pallet::<T>::try_create_style(input_name, input_sub_styles).unwrap();
+                let style = Pallet::<T>::try_new_style(input_name, input_sub_styles).unwrap();
 
                 styles.try_push(style).expect("Style max reached");
             }
@@ -135,7 +131,7 @@ pub mod pallet {
         ) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
-            let style = Self::try_create_style(&name, &sub)?;
+            let style = Self::try_new_style(&name, &sub)?;
 
             <Styles<T>>::try_append(style.clone()).map_err(|_| Error::<T>::StylesCapacity)?;
 
@@ -152,29 +148,20 @@ pub mod pallet {
         ) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
-            let mut added: Option<SubStyleType<T>> = None;
+            let mut styles = <Styles<T>>::get();
+            let new_sub_style = Self::try_new_sub_style(&name, &parent_id)?;
 
-            <Styles<T>>::try_mutate(|styles| -> DispatchResult {
-                let parent_style = styles
-                    .iter_mut()
-                    .find(|style| &style.id == &parent_id)
-                    .ok_or_else(|| Error::<T>::StyleNotFound)?;
+            styles
+                .iter_mut()
+                .find(|style| &style.id == &parent_id)
+                .ok_or_else(|| Error::<T>::StyleNotFound)?
+                .sub_styles
+                .try_push(new_sub_style.clone())
+                .map_err(|_| Error::<T>::StylesCapacity)?;
 
-                let new_sub_style = Self::try_create_sub_style(&name, &parent_id)?;
+            <Styles<T>>::put(styles);
 
-                added = Some(new_sub_style.clone());
-
-                parent_style
-                    .sub_styles
-                    .try_push(new_sub_style)
-                    .map_err(|_| Error::<T>::StylesCapacity)?;
-
-                Ok(())
-            })?;
-
-            let added = added.ok_or_else(|| Error::<T>::MutationError)?;
-
-            Self::deposit_event(Event::SubStyleAdded(parent_id, added));
+            Self::deposit_event(Event::SubStyleAdded(parent_id, new_sub_style));
 
             Ok(())
         }
@@ -189,7 +176,6 @@ pub mod pallet {
 
             let bounded_name = Self::unwrap_name(&new_name)?;
             let mut styles = <Styles<T>>::get();
-
             let style_kind = Self::get_style(id, &styles);
 
             match style_kind {
@@ -206,16 +192,11 @@ pub mod pallet {
                 StyleKind::SubStyle(sub_style) => {
                     // Get the parent style to check is the new name is not already used in sub styles.
                     match styles.iter_mut().find(|s| s.id == sub_style.parent_id) {
-                        Some(parent_style) => {
-                            if let Some(_) = parent_style
-                                .sub_styles
-                                .iter()
-                                .find(|s| s.name == bounded_name)
-                            {
+                        Some(p) => {
+                            if let Some(_) = p.sub_styles.iter().find(|s| s.name == bounded_name) {
                                 return Err(Error::<T>::NameAlreadyExists)?;
                             }
-
-                            match parent_style.sub_styles.iter_mut().find(|s| s.id == id) {
+                            match p.sub_styles.iter_mut().find(|s| s.id == id) {
                                 Some(s) => s.name = bounded_name,
                                 None => Err(Error::<T>::StyleNotFound)?,
                             }
@@ -241,14 +222,16 @@ pub mod pallet {
             let mut styles = <Styles<T>>::get();
             let style_kind = Self::get_style(id, &styles);
 
-            let removed: StyleKind<T> = match style_kind {
+            match style_kind {
                 StyleKind::MainStyle(style) => {
                     let position = styles
                         .iter()
                         .position(|s| &s.id == &style.id)
                         .ok_or_else(|| Error::<T>::StyleNotFound)?;
 
-                    StyleKind::MainStyle(styles.remove(position))
+                    let removed = styles.remove(position);
+                    <Styles<T>>::put(styles);
+                    Self::deposit_event(Event::StyleRemoved(removed));
                 }
                 StyleKind::SubStyle(sub_style) => {
                     let style = styles
@@ -263,22 +246,12 @@ pub mod pallet {
                         .position(|s| s.id == id)
                         .ok_or_else(|| Error::<T>::StyleNotFound)?;
 
-                    StyleKind::SubStyle(style.sub_styles.remove(remove_position))
+                    let removed = style.sub_styles.remove(remove_position);
+                    <Styles<T>>::put(styles);
+                    Self::deposit_event(Event::SubStyleRemoved(removed));
                 }
                 StyleKind::None => Err(Error::<T>::StyleNotFound)?,
             };
-
-            <Styles<T>>::put(styles);
-
-            match removed {
-                StyleKind::MainStyle(s) => {
-                    Self::deposit_event(Event::StyleRemoved(s));
-                }
-                StyleKind::SubStyle(s) => {
-                    Self::deposit_event(Event::SubStyleRemoved(s));
-                }
-                StyleKind::None => Err(Error::<T>::StyleNotFound)?,
-            }
 
             Ok(())
         }

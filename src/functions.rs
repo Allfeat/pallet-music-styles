@@ -81,61 +81,6 @@ impl<T: Config> Pallet<T> {
         false
     }
 
-    /// Search in the primary style names
-    /// Not in the sub styles
-    // pub fn contains_primary_style(name: &BoundedName<T>) -> bool {
-    //     <Styles<T>>::get()
-    //         .iter()
-    //         .find(|style| &style.name == name)
-    //         .is_some()
-    // }
-
-    // Search in all sub styles
-    // pub fn contains_sub_style(name: &BoundedName<T>) -> bool {
-    //     <Styles<T>>::get()
-    //         .iter()
-    //         .flat_map(|style| style.sub_styles.clone())
-    //         .collect::<Vec<BoundedName<T>>>()
-    //         .iter()
-    //         .find(|style| style == &name)
-    //         .is_some()
-    // }
-
-    // Search in sub style for a given parent style
-    // pub fn contains_sub_style_for(parent: &BoundedName<T>, name: &BoundedName<T>) -> bool {
-    //     let styles = <Styles<T>>::get();
-    //     match &styles.iter().find(|style| &style.name == parent) {
-    //         Some(style) => style
-    //             .sub_styles
-    //             .iter()
-    //             .find(|style| style == &name)
-    //             .is_some(),
-    //         None => false,
-    //     }
-    // }
-
-    // pub fn get_style_position(
-    //     name: &BoundedName<T>,
-    //     styles: &BoundedStyleList<T>,
-    // ) -> Option<usize> {
-    //     styles.iter().position(|style| &style.name == name)
-    // }
-
-    /// Returns a mut ref to Style or throw Error
-    // pub fn try_get_mut_style<'a>(
-    //     name: &BoundedName<T>,
-    //     styles: &'a mut BoundedStyleList<T>,
-    // ) -> Result<&'a mut StyleType<T>, DispatchError> {
-    //     let index =
-    //         Self::get_style_position(name, styles).ok_or_else(|| Error::<T>::StyleNotFound)?;
-
-    //     let style = styles
-    //         .get_mut(index)
-    //         .ok_or_else(|| Error::<T>::StyleNotFound)?;
-
-    //     Ok(style)
-    // }
-
     pub fn unwrap_name(input: &Vec<u8>) -> Result<BoundedName<T>, DispatchError> {
         Ok(input
             .clone()
@@ -143,20 +88,46 @@ impl<T: Config> Pallet<T> {
             .map_err(|_| Error::<T>::NameTooLong)?)
     }
 
-    fn create_empty_sub_list() -> Result<BoundedSubStyleList<T>, DispatchError> {
-        let empty_vec = Vec::from(Vec::new());
-        Ok(BoundedVec::try_from(empty_vec).map_err(|_| Error::<T>::StylesCapacity)?)
+    fn unwrap_sub_list(
+        input: &Option<Vec<Vec<u8>>>,
+        parent_id: &H256,
+    ) -> Result<BoundedSubStyleList<T>, DispatchError> {
+        let default_sub_list = || -> Result<BoundedSubStyleList<T>, DispatchError> {
+            let empty_vec = Vec::from(Vec::new());
+            let bounded_vec = BoundedVec::try_from(empty_vec);
+            Ok(bounded_vec.map_err(|_| Error::<T>::StylesCapacity)?)
+        };
+
+        let names_vec = match input {
+            Some(vec) => vec,
+            None => return default_sub_list(),
+        };
+
+        let mut sub_styles: Vec<SubStyleType<T>> = Vec::new();
+        for name_vec in names_vec.iter() {
+            let sub_style = Self::try_new_sub_style(&name_vec, parent_id)?;
+
+            if Self::contains(&parent_id) {
+                return Err(Error::<T>::NameAlreadyExists)?;
+            }
+
+            match sub_styles.iter().find(|x| x.name == sub_style.name) {
+                Some(_) => Err(Error::<T>::NameAlreadyExists)?,
+                None => sub_styles.push(sub_style),
+            };
+        }
+
+        Ok(BoundedVec::try_from(sub_styles).map_err(|_| Error::<T>::StylesCapacity)?)
     }
 
     /// Create a new SubStyle struct
     /// The sub style hash is created from the parent hash
-    pub fn try_create_sub_style(
+    pub fn try_new_sub_style(
         name: &Vec<u8>,
         parent_id: &H256,
     ) -> Result<SubStyleType<T>, DispatchError> {
         let bounded_name = Self::unwrap_name(name)?;
         let id = BlakeTwo256::hash(&[parent_id.as_bytes(), name].concat());
-
         if Self::contains(&id) {
             return Err(Error::<T>::NameAlreadyExists)?;
         }
@@ -170,50 +141,13 @@ impl<T: Config> Pallet<T> {
         Ok(sub_style)
     }
 
-    pub fn unwrap_new_sub(
-        input: &Option<Vec<Vec<u8>>>,
-        parent_id: &H256,
-    ) -> Result<BoundedSubStyleList<T>, DispatchError> {
-        let vec = match input {
-            Some(vec) => vec,
-            None => return Ok(Self::create_empty_sub_list()?),
-        };
-
-        // TODO: Replace name based duplicate check by unique ID check
-        // When sub style hash'll be built from parent hash, each style'll be unique 🙌
-        let mut sub_styles: Vec<SubStyleType<T>> = Vec::new();
-
-        for name_vec in vec.iter() {
-            let sub_style = Self::try_create_sub_style(&name_vec, parent_id)?;
-
-            // Search in pallet storage
-            if Self::contains(&parent_id) {
-                return Err(Error::<T>::NameAlreadyExists)?;
-            }
-
-            // Search in the current sub style list
-            let is_already_added = sub_styles
-                .iter()
-                .find(|x| x.name == sub_style.name)
-                .is_some();
-
-            if is_already_added {
-                return Err(Error::<T>::DuplicatedStyle)?;
-            }
-
-            sub_styles.push(sub_style);
-        }
-
-        Ok(BoundedVec::try_from(sub_styles).map_err(|_| Error::<T>::StylesCapacity)?)
-    }
-
-    pub fn try_create_style(
+    pub fn try_new_style(
         name: &Vec<u8>,
         sub: &Option<Vec<Vec<u8>>>,
     ) -> Result<StyleType<T>, DispatchError> {
         let bounded_name = Self::unwrap_name(name)?;
         let parent_id = BlakeTwo256::hash(&name);
-        let bounded_sub = Self::unwrap_new_sub(sub, &parent_id)?;
+        let bounded_sub = Self::unwrap_sub_list(sub, &parent_id)?;
 
         if Self::contains(&parent_id) {
             return Err(Error::<T>::NameAlreadyExists)?;
