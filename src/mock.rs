@@ -83,9 +83,9 @@ pub(crate) fn new_test_ext(include_genesis: bool) -> sp_io::TestExternalities {
     let pallet_config: pallet_music_styles::GenesisConfig<Test> = match include_genesis {
         true => pallet_music_styles::GenesisConfig {
             styles: vec![
-                create_style("Reggae", vec![]),
-                create_style("Rap", vec!["Drill", "Trap"]),
-                create_style("Rock", vec![]),
+                create_style("Reggae", None),
+                create_style("Rap", Some(vec!["Drill", "Trap", "Hardcore"])),
+                create_style("Rock", Some(vec!["Hardcore"])),
             ],
             phantom: Default::default(),
         },
@@ -101,10 +101,14 @@ pub(crate) fn new_test_ext(include_genesis: bool) -> sp_io::TestExternalities {
 }
 
 // Helpers to add styles in a human friendly fashion
-pub fn create_style(name: &str, children: Vec<&str>) -> (Vec<u8>, Vec<Vec<u8>>) {
+pub fn create_style(name: &str, children: Option<Vec<&str>>) -> (Vec<u8>, Option<Vec<Vec<u8>>>) {
     let to_style = |name: &str| name.as_bytes().to_vec();
-    let to_sub_styles =
-        |names: Vec<&str>| names.iter().map(|t| to_style(t)).collect::<Vec<Vec<u8>>>();
 
-    (to_style(name), to_sub_styles(children))
+    if let Some(names) = children {
+        let sub_styles = names.iter().map(|t| to_style(t)).collect::<Vec<Vec<u8>>>();
+
+        return (to_style(name), Some(sub_styles));
+    } else {
+        return (to_style(name), None);
+    }
 }

@@ -3,19 +3,40 @@ use super::*;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::BoundedVec;
 use scale_info::TypeInfo;
+use sp_core::H256;
 use sp_runtime::RuntimeDebug;
 use sp_std::prelude::*;
 
 // Helper types
+// pub type Hash<T> = <T as frame_system::Config>::Hash;
+
+// unique pieces
 pub type BoundedName<T> = BoundedVec<u8, <T as Config>::NameMaxLength>;
-pub type BoundedNameList<T> = BoundedVec<BoundedName<T>, <T as Config>::MaxSubStyles>;
-pub type StyleType<T> = Style<BoundedName<T>, BoundedNameList<T>>;
+pub type StyleType<T> = Style<H256, BoundedName<T>, BoundedSubStyleList<T>>;
+pub type SubStyleType<T> = SubStyle<H256, BoundedName<T>>;
+
+// Bounded vectors
+pub type BoundedSubStyleList<T> = BoundedVec<SubStyleType<T>, <T as Config>::MaxSubStyles>;
 pub type BoundedStyleList<T> = BoundedVec<StyleType<T>, <T as Config>::MaxStyles>;
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct Style<BoundedName, BoundedSubStyles> {
+pub struct Style<Hash, BoundedName, BoundedSubStyles> {
+    pub id: Hash,
     pub name: BoundedName,
     pub sub_styles: BoundedSubStyles,
+}
+
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct SubStyle<Hash, BoundedName> {
+    pub id: Hash,
+    pub name: BoundedName,
+    pub parent_id: Hash,
+}
+
+pub enum StyleKind<T: Config> {
+    MainStyle(StyleType<T>),
+    SubStyle(SubStyleType<T>),
+    None,
 }
 
 // impl<BoundedName, BoundedNameList> Style<BoundedName, BoundedNameList>
