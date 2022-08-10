@@ -537,7 +537,7 @@ mod remove_sub_style {
                 .unwrap();
 
             assert_noop!(
-                MusicStylesPallet::remove_sub_style(Origin::signed(BOB), sub_rap_item.id),
+                MusicStylesPallet::remove(Origin::signed(BOB), sub_rap_item.id),
                 BadOrigin
             );
         });
@@ -549,7 +549,7 @@ mod remove_sub_style {
             let unexistising_parent = new_style("unexistising_parent", vec!["unexistising_child"]);
             let unexistising_child = unexistising_parent.sub_styles.get(0).unwrap();
             assert_noop!(
-                MusicStylesPallet::remove_sub_style(Origin::root(), unexistising_child.id),
+                MusicStylesPallet::remove(Origin::root(), unexistising_child.id),
                 Error::<Test>::StyleNotFound
             );
         });
@@ -570,10 +570,7 @@ mod remove_sub_style {
                 .find(|s| s.name == bounded_name)
                 .unwrap();
 
-            assert_ok!(MusicStylesPallet::remove_sub_style(
-                Origin::root(),
-                sub_style.id
-            ));
+            assert_ok!(MusicStylesPallet::remove(Origin::root(), sub_style.id));
 
             // Parent is unchanged
             assert!(MusicStylesPallet::contains(&rap.id));
@@ -585,7 +582,7 @@ mod remove_sub_style {
             assert_eq!(updated_style.sub_styles.len(), initial_sub_count - 1);
 
             // Check that the event has been called
-            assert_last_event(SubStyleRemoved(rap.id, sub_style.clone()));
+            assert_last_event(SubStyleRemoved(sub_style.clone()));
         });
     }
 }

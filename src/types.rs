@@ -33,6 +33,7 @@ pub struct SubStyle<Hash, BoundedName> {
     pub parent_id: Hash,
 }
 
+#[derive(Clone, PartialEq, Eq, RuntimeDebug)]
 pub enum StyleKind<T: Config> {
     MainStyle(StyleType<T>),
     SubStyle(SubStyleType<T>),

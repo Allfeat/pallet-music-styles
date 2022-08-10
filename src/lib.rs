@@ -70,7 +70,7 @@ pub mod pallet {
         /// A music style has been removed
         StyleRemoved(StyleType<T>),
         /// A sub style has been removed from parent (parent, sub_style)
-        SubStyleRemoved(H256, SubStyleType<T>),
+        SubStyleRemoved(SubStyleType<T>),
     }
 
     #[pallet::error]
@@ -233,62 +233,53 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Remove a style and its own sub styles
+        /// Remove a sub style or a style (and its own sub styles)
         #[pallet::weight(0)]
         pub fn remove(origin: OriginFor<T>, id: H256) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
             let mut styles = <Styles<T>>::get();
+            let style_kind = Self::get_style(id, &styles);
 
-            let position = styles
-                .iter()
-                .position(|style| &style.id == &id)
-                .ok_or_else(|| Error::<T>::StyleNotFound)?;
+            let removed: StyleKind<T> = match style_kind {
+                StyleKind::MainStyle(style) => {
+                    let position = styles
+                        .iter()
+                        .position(|s| &s.id == &style.id)
+                        .ok_or_else(|| Error::<T>::StyleNotFound)?;
 
-            let removed = styles.remove(position);
-
-            <Styles<T>>::put(styles);
-
-            Self::deposit_event(Event::StyleRemoved(removed));
-
-            Ok(())
-        }
-
-        /// Remove a sub style for a given parent style
-        #[pallet::weight(0)]
-        pub fn remove_sub_style(origin: OriginFor<T>, id: H256) -> DispatchResult {
-            T::AdminOrigin::ensure_origin(origin.clone())?;
-
-            // Find the parent id
-            let mut styles = <Styles<T>>::get();
-            let mut parent_id: Option<H256> = None;
-            for style in &styles {
-                for sub_style in &style.sub_styles {
-                    if sub_style.id == id {
-                        parent_id = Some(style.id);
-                    }
+                    StyleKind::MainStyle(styles.remove(position))
                 }
-            }
-            let parent_id = parent_id.ok_or_else(|| Error::<T>::StyleNotFound)?;
+                StyleKind::SubStyle(sub_style) => {
+                    let style = styles
+                        .iter_mut()
+                        .find(|s| s.id == sub_style.parent_id)
+                        .ok_or_else(|| Error::<T>::StyleNotFound)?;
 
-            // Get the mutable parent style
-            let style = styles
-                .iter_mut()
-                .find(|s| s.id == parent_id)
-                .ok_or_else(|| Error::<T>::StyleNotFound)?;
+                    // Find the position of the element to delete
+                    let remove_position = style
+                        .sub_styles
+                        .iter()
+                        .position(|s| s.id == id)
+                        .ok_or_else(|| Error::<T>::StyleNotFound)?;
 
-            // Find the position of the element to delete
-            let remove_position = style
-                .sub_styles
-                .iter()
-                .position(|s| s.id == id)
-                .ok_or_else(|| Error::<T>::StyleNotFound)?;
-
-            let removed = style.sub_styles.remove(remove_position);
+                    StyleKind::SubStyle(style.sub_styles.remove(remove_position))
+                }
+                StyleKind::None => Err(Error::<T>::StyleNotFound)?,
+            };
 
             <Styles<T>>::put(styles);
 
-            Self::deposit_event(Event::SubStyleRemoved(parent_id, removed));
+            match removed {
+                StyleKind::MainStyle(s) => {
+                    Self::deposit_event(Event::StyleRemoved(s));
+                }
+                StyleKind::SubStyle(s) => {
+                    Self::deposit_event(Event::SubStyleRemoved(s));
+                }
+                StyleKind::None => Err(Error::<T>::StyleNotFound)?,
+            }
+
             Ok(())
         }
     }
