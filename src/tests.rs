@@ -4,11 +4,6 @@ use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use rand::{thread_rng, Rng};
 use sp_runtime::traits::{BlakeTwo256, Hash};
 
-// Test hash
-// duplicate that hash are different if 2 sub styles use the same name
-// Update a name should not updates the id
-// Merge `remove` and `remove_sub`
-
 /// Helper function that generates a random string from a given length
 /// Should only be used for testing purpose
 fn generate_random_string(length: usize) -> String {
@@ -151,7 +146,7 @@ mod add {
     fn should_fail_before_exceeded_main_storage_bound() {
         new_test_ext(false).execute_with(|| {
             // Fill the storage
-            for i in 0..MaxStyles::get() {
+            for i in 0..MaxStyleCount::get() {
                 assert_ok!(MusicStylesPallet::add(
                     Origin::root(),
                     generate_random_name(i),
@@ -163,7 +158,7 @@ mod add {
             assert_noop!(
                 MusicStylesPallet::add(
                     Origin::root(),
-                    generate_random_name(MaxStyles::get()),
+                    generate_random_name(MaxStyleCount::get()),
                     None
                 ),
                 Error::<Test>::StylesCapacity
@@ -176,7 +171,7 @@ mod add {
         new_test_ext(false).execute_with(|| {
             // Create sub style vec with too many items
             let mut sub = vec![];
-            for i in 0..MaxSubStyles::get() + 2 {
+            for i in 0..MaxSubStyleCount::get() + 2 {
                 sub.push(generate_random_name(i));
             }
 
@@ -208,10 +203,10 @@ mod add {
                 .unwrap()
                 .clone();
 
-            assert!(MusicStylesPallet::contains_name(
+            assert!(MusicStylesPallet::contains(
                 &name.clone().try_into().unwrap()
             ));
-            assert!(MusicStylesPallet::contains_name(
+            assert!(MusicStylesPallet::contains(
                 &sub_name.clone().try_into().unwrap()
             ));
 
@@ -283,7 +278,7 @@ mod add_sub_style {
             let reggae = new_style("Reggae", vec![]);
 
             // Fill the storage
-            for i in 0..MaxSubStyles::get() {
+            for i in 0..MaxSubStyleCount::get() {
                 assert_ok!(MusicStylesPallet::add_sub_style(
                     Origin::root(),
                     reggae.id.clone(),
@@ -325,10 +320,10 @@ mod add_sub_style {
                 .find(|s| s.name == bounded_new_name)
                 .unwrap();
 
-            assert!(MusicStylesPallet::contains(&created_sub_style.id));
+            assert!(MusicStylesPallet::contains_hash(&created_sub_style.id));
 
             // Check that the event has been called
-            assert_last_event(SubStyleAdded(rap.id, created_sub_style.clone()));
+            assert_last_event(SubStyleAdded(created_sub_style.clone()));
         });
     }
 }
@@ -429,7 +424,7 @@ mod update_style_name {
             assert_eq!(updated_style.name, bounded_new_name);
             assert_ne!(updated_style.name, rap.name);
 
-            assert_last_event(StyleNameUpdated(rap.id, new_name_vec));
+            assert_last_event(StyleNameUpdated(rap, updated_style.clone()));
         });
     }
 
@@ -463,7 +458,10 @@ mod update_style_name {
             assert_eq!(updated_sub_style.name, bounded_new_name);
             assert_ne!(updated_sub_style.name, rap.name);
 
-            assert_last_event(StyleNameUpdated(drill.id, new_name_vec));
+            assert_last_event(SubStyleNameUpdated(
+                drill.clone(),
+                updated_sub_style.clone(),
+            ));
         });
     }
 }
@@ -508,10 +506,10 @@ mod remove {
             assert_ok!(MusicStylesPallet::remove(Origin::root(), rap.id));
 
             // Querying it should fail since it was removed
-            assert!(!MusicStylesPallet::contains(&rap.id));
-            assert!(!MusicStylesPallet::contains_name(&rap.name));
+            assert!(!MusicStylesPallet::contains_hash(&rap.id));
+            assert!(!MusicStylesPallet::contains(&rap.name));
             // Same for sub styles
-            assert!(!MusicStylesPallet::contains(&drill.id));
+            assert!(!MusicStylesPallet::contains_hash(&drill.id));
 
             // Check that the storage has been updated
             assert_eq!(MusicStylesPallet::get().len(), initial_count - 1);
@@ -573,10 +571,10 @@ mod remove_sub_style {
             assert_ok!(MusicStylesPallet::remove(Origin::root(), sub_style.id));
 
             // Parent is unchanged
-            assert!(MusicStylesPallet::contains(&rap.id));
+            assert!(MusicStylesPallet::contains_hash(&rap.id));
 
             // sub style is removed
-            assert!(!MusicStylesPallet::contains(&sub_style.id));
+            assert!(!MusicStylesPallet::contains_hash(&sub_style.id));
             let updated_styles = MusicStylesPallet::get();
             let updated_style = updated_styles.iter().find(|&s| s.id == rap.id).unwrap();
             assert_eq!(updated_style.sub_styles.len(), initial_sub_count - 1);

@@ -15,11 +15,11 @@ use frame_system::pallet_prelude::*;
 pub use functions::*;
 pub use pallet::*;
 use sp_core::H256;
-use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+use sp_std::prelude::*;
 pub use types::*;
 
-impl<T: Config> Contains<H256> for Pallet<T> {
-    fn contains(t: &H256) -> bool {
+impl<T: Config> Contains<Vec<u8>> for Pallet<T> {
+    fn contains(t: &Vec<u8>) -> bool {
         Self::contains(t)
     }
 }
@@ -37,13 +37,13 @@ pub mod pallet {
         /// Who can manage an music style list
         type AdminOrigin: EnsureOrigin<Self::Origin>;
 
-        /// The maximum length of a music style name
+        /// The maximum storable music style count
         #[pallet::constant]
-        type MaxStyles: Get<u32>;
+        type MaxStyleCount: Get<u32>;
 
-        /// The maximum length of a sub music style per style
+        /// The maximum storable music sub style count
         #[pallet::constant]
-        type MaxSubStyles: Get<u32>;
+        type MaxSubStyleCount: Get<u32>;
 
         /// The maximum length of a music style name
         #[pallet::constant]
@@ -52,7 +52,7 @@ pub mod pallet {
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(_);
+    pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::storage]
     #[pallet::getter(fn get)]
@@ -63,13 +63,15 @@ pub mod pallet {
     pub enum Event<T: Config> {
         /// A new music style has been added
         StyleAdded(StyleType<T>),
-        /// A new sub style has been added to parent (parent, new_sub_style)
-        SubStyleAdded(H256, SubStyleType<T>),
+        /// A new sub style has been added to parent
+        SubStyleAdded(SubStyleType<T>),
         /// A style name has been updated (old, new)
-        StyleNameUpdated(H256, Vec<u8>),
+        StyleNameUpdated(StyleType<T>, StyleType<T>),
+        /// A sub-style name has been updated (old, new)
+        SubStyleNameUpdated(SubStyleType<T>, SubStyleType<T>),
         /// A music style has been removed
         StyleRemoved(StyleType<T>),
-        /// A sub style has been removed from parent (parent, sub_style)
+        /// A sub style has been removed from parent
         SubStyleRemoved(SubStyleType<T>),
     }
 
@@ -89,9 +91,8 @@ pub mod pallet {
     pub struct GenesisConfig<T: Config> {
         /// The existing music styles at the genesis
         pub styles: Vec<(Vec<u8>, Option<Vec<Vec<u8>>>)>,
-        // Note: Use phantom data because we need a Generic
-        // in the GenesisConfig and BlockNumber impl Default
-        pub phantom: T::BlockNumber,
+        // Note: Use phantom data because we need a Generic in the GenesisConfig
+        pub phantom: PhantomData<T>,
     }
 
     #[cfg(feature = "std")]
@@ -110,7 +111,9 @@ pub mod pallet {
             let mut styles: BoundedStyleList<T> = BoundedVec::try_from(Vec::new()).unwrap();
 
             for (input_name, input_sub_styles) in &self.styles {
-                let style = Pallet::<T>::try_new_style(input_name, input_sub_styles).unwrap();
+                let style =
+                    Pallet::<T>::try_new_style(input_name.clone(), input_sub_styles.clone())
+                        .unwrap();
 
                 styles.try_push(style).expect("Style max reached");
             }
@@ -131,7 +134,7 @@ pub mod pallet {
         ) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
-            let style = Self::try_new_style(&name, &sub)?;
+            let style = Self::try_new_style(name, sub)?;
 
             <Styles<T>>::try_append(style.clone()).map_err(|_| Error::<T>::StylesCapacity)?;
 
@@ -149,7 +152,7 @@ pub mod pallet {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
             let mut styles = <Styles<T>>::get();
-            let new_sub_style = Self::try_new_sub_style(&name, &parent_id)?;
+            let new_sub_style = Self::try_new_sub_style(name, parent_id)?;
 
             styles
                 .iter_mut()
@@ -161,7 +164,7 @@ pub mod pallet {
 
             <Styles<T>>::put(styles);
 
-            Self::deposit_event(Event::SubStyleAdded(parent_id, new_sub_style));
+            Self::deposit_event(Event::SubStyleAdded(new_sub_style));
 
             Ok(())
         }
@@ -174,42 +177,62 @@ pub mod pallet {
         ) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
-            let bounded_name = Self::unwrap_name(&new_name)?;
+            let bounded_name = Self::try_into_bounded_name(new_name.clone())?;
             let mut styles = <Styles<T>>::get();
             let style_kind = Self::get_style(id, &styles);
 
             match style_kind {
                 StyleKind::MainStyle(style) => {
                     // Check if the name is free at main styles level
-                    match &styles.iter().find(|s| s.name == bounded_name) {
-                        Some(_) => Err(Error::<T>::NameAlreadyExists)?,
-                        None => match styles.iter_mut().find(|s| s.id == style.id) {
-                            Some(s) => s.name = bounded_name,
-                            None => Err(Error::<T>::StyleNotFound)?,
-                        },
+                    if styles.iter().find(|s| s.name == bounded_name).is_some() {
+                        return Err(Error::<T>::NameAlreadyExists)?;
                     }
+
+                    // Get and mutate style
+                    let mut style = styles
+                        .iter_mut()
+                        .find(|s| s.id == style.id)
+                        .ok_or_else(|| Error::<T>::StyleNotFound)?;
+
+                    let old_style = style.clone();
+                    style.name = bounded_name;
+                    let new_style = style.clone();
+
+                    <Styles<T>>::put(styles);
+                    Self::deposit_event(Event::StyleNameUpdated(old_style, new_style));
                 }
                 StyleKind::SubStyle(sub_style) => {
-                    // Get the parent style to check is the new name is not already used in sub styles.
-                    match styles.iter_mut().find(|s| s.id == sub_style.parent_id) {
-                        Some(p) => {
-                            if let Some(_) = p.sub_styles.iter().find(|s| s.name == bounded_name) {
-                                return Err(Error::<T>::NameAlreadyExists)?;
-                            }
-                            match p.sub_styles.iter_mut().find(|s| s.id == id) {
-                                Some(s) => s.name = bounded_name,
-                                None => Err(Error::<T>::StyleNotFound)?,
-                            }
-                        }
-                        None => Err(Error::<T>::StyleNotFound)?,
+                    // Get the parent style
+                    let parent_style = styles
+                        .iter_mut()
+                        .find(|s| s.id == sub_style.parent_id)
+                        .ok_or_else(|| Error::<T>::StyleNotFound)?;
+
+                    // check is the new name is not already used in sub styles.
+                    if let Some(_) = parent_style
+                        .sub_styles
+                        .iter()
+                        .find(|s| s.name == bounded_name)
+                    {
+                        return Err(Error::<T>::NameAlreadyExists)?;
                     }
+
+                    // Get and mutate style
+                    let sub_style = parent_style
+                        .sub_styles
+                        .iter_mut()
+                        .find(|s| s.id == sub_style.id)
+                        .ok_or_else(|| Error::<T>::StyleNotFound)?;
+
+                    let old_sub_style = sub_style.clone();
+                    sub_style.name = bounded_name;
+                    let new_sub_style = sub_style.clone();
+
+                    <Styles<T>>::put(styles);
+                    Self::deposit_event(Event::SubStyleNameUpdated(old_sub_style, new_sub_style));
                 }
                 StyleKind::None => Err(Error::<T>::StyleNotFound)?,
             };
-
-            <Styles<T>>::put(styles);
-
-            Self::deposit_event(Event::StyleNameUpdated(id, new_name));
 
             Ok(())
         }

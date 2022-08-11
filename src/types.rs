@@ -39,5 +39,5 @@ pub type StyleType<T> = Style<H256, BoundedName<T>, BoundedSubStyleList<T>>;
 pub type SubStyleType<T> = SubStyle<H256, BoundedName<T>>;
 
 // Bounded vectors
-pub type BoundedSubStyleList<T> = BoundedVec<SubStyleType<T>, <T as Config>::MaxSubStyles>;
-pub type BoundedStyleList<T> = BoundedVec<StyleType<T>, <T as Config>::MaxStyles>;
+pub type BoundedSubStyleList<T> = BoundedVec<SubStyleType<T>, <T as Config>::MaxSubStyleCount>;
+pub type BoundedStyleList<T> = BoundedVec<StyleType<T>, <T as Config>::MaxStyleCount>;

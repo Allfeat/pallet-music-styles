@@ -4,14 +4,28 @@ use super::*;
 use sp_core::H256;
 use sp_runtime::traits::{BlakeTwo256, Hash};
 
-pub fn btree_to_vec<T: Clone>(values: BTreeSet<T>) -> Vec<T> {
-    values.iter().cloned().collect()
-}
-
 impl<T: Config> Pallet<T> {
     /// Search in all styles and sub styles
     /// Used for Pallet::contains
-    pub fn contains(t: &H256) -> bool {
+    pub fn contains(t: &Vec<u8>) -> bool {
+        for style in <Styles<T>>::get() {
+            if &style.name.into_inner() == t {
+                return true;
+            }
+            if style
+                .sub_styles
+                .iter()
+                .find(|&sub| &sub.name.clone().into_inner() == t)
+                .is_some()
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Search in all styles and sub styles  like "contains" but by hash
+    pub fn contains_hash(t: &H256) -> bool {
         for style in <Styles<T>>::get() {
             if &style.id == t {
                 return true;
@@ -63,34 +77,15 @@ impl<T: Config> Pallet<T> {
         StyleKind::None
     }
 
-    /// Search in all styles and sub styles like "contains" but by name
-    pub fn contains_name(t: &BoundedName<T>) -> bool {
-        for style in <Styles<T>>::get() {
-            if &style.name == t {
-                return true;
-            }
-            if style
-                .sub_styles
-                .iter()
-                .find(|&sub| &sub.name == t)
-                .is_some()
-            {
-                return true;
-            }
-        }
-        false
+    /// Returns a storable boundedVec from a given Vec of bytes
+    pub fn try_into_bounded_name(input: Vec<u8>) -> Result<BoundedName<T>, DispatchError> {
+        Ok(input.try_into().map_err(|_| Error::<T>::NameTooLong)?)
     }
 
-    pub fn unwrap_name(input: &Vec<u8>) -> Result<BoundedName<T>, DispatchError> {
-        Ok(input
-            .clone()
-            .try_into()
-            .map_err(|_| Error::<T>::NameTooLong)?)
-    }
-
-    fn unwrap_sub_list(
-        input: &Option<Vec<Vec<u8>>>,
-        parent_id: &H256,
+    /// Returns a storable boundedVec of sub styles
+    fn try_into_sub_style_list(
+        input: Option<Vec<Vec<u8>>>,
+        parent_id: H256,
     ) -> Result<BoundedSubStyleList<T>, DispatchError> {
         let default_sub_list = || -> Result<BoundedSubStyleList<T>, DispatchError> {
             let empty_vec = Vec::from(Vec::new());
@@ -105,9 +100,9 @@ impl<T: Config> Pallet<T> {
 
         let mut sub_styles: Vec<SubStyleType<T>> = Vec::new();
         for name_vec in names_vec.iter() {
-            let sub_style = Self::try_new_sub_style(&name_vec, parent_id)?;
+            let sub_style = Self::try_new_sub_style(name_vec.clone(), parent_id)?;
 
-            if Self::contains(&parent_id) {
+            if Self::contains_hash(&parent_id) {
                 return Err(Error::<T>::NameAlreadyExists)?;
             }
 
@@ -123,12 +118,12 @@ impl<T: Config> Pallet<T> {
     /// Create a new SubStyle struct
     /// The sub style hash is created from the parent hash
     pub fn try_new_sub_style(
-        name: &Vec<u8>,
-        parent_id: &H256,
+        name: Vec<u8>,
+        parent_id: H256,
     ) -> Result<SubStyleType<T>, DispatchError> {
-        let bounded_name = Self::unwrap_name(name)?;
-        let id = BlakeTwo256::hash(&[parent_id.as_bytes(), name].concat());
-        if Self::contains(&id) {
+        let bounded_name = Self::try_into_bounded_name(name.clone())?;
+        let id = BlakeTwo256::hash(&[parent_id.as_bytes(), &name].concat());
+        if Self::contains_hash(&id) {
             return Err(Error::<T>::NameAlreadyExists)?;
         }
 
@@ -141,15 +136,16 @@ impl<T: Config> Pallet<T> {
         Ok(sub_style)
     }
 
+    /// Try to create a new style
     pub fn try_new_style(
-        name: &Vec<u8>,
-        sub: &Option<Vec<Vec<u8>>>,
+        name: Vec<u8>,
+        sub: Option<Vec<Vec<u8>>>,
     ) -> Result<StyleType<T>, DispatchError> {
-        let bounded_name = Self::unwrap_name(name)?;
+        let bounded_name = Self::try_into_bounded_name(name.clone())?;
         let parent_id = BlakeTwo256::hash(&name);
-        let bounded_sub = Self::unwrap_sub_list(sub, &parent_id)?;
+        let bounded_sub = Self::try_into_sub_style_list(sub, parent_id)?;
 
-        if Self::contains(&parent_id) {
+        if Self::contains_hash(&parent_id) {
             return Err(Error::<T>::NameAlreadyExists)?;
         }
 

@@ -61,16 +61,16 @@ impl frame_system::Config for Test {
 }
 
 parameter_types! {
-    pub const MaxStyles: u32 = 5;
-    pub const MaxSubStyles: u32 = 5;
+    pub const MaxStyleCount: u32 = 5;
+    pub const MaxSubStyleCount: u32 = 5;
     pub const NameMaxLength: u32 = 20;
 }
 
 impl pallet_music_styles::Config for Test {
     type Event = Event;
     type AdminOrigin = EnsureRoot<AccountId>;
-    type MaxStyles = MaxStyles;
-    type MaxSubStyles = MaxSubStyles;
+    type MaxStyleCount = MaxStyleCount;
+    type MaxSubStyleCount = MaxSubStyleCount;
     type NameMaxLength = NameMaxLength;
 }
 
