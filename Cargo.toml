@@ -1,13 +1,13 @@
 [package]
-name = "pallet-template"
+name = "pallet-music-styles"
 version = "0.1.0-dev"
-description = "FRAME pallet template adapted to build on the Allfeat blockchain."
+description = "FRAME pallet to manage and store music styles on-chain."
 authors = ["Allfeat <https://github.com/All-feat>"]
 homepage = "https://allfeat.com/"
 edition = "2021"
 license = "Unlicense"
 publish = false
-repository = "https://github.com/All-feat/pallet-template"
+repository = "https://github.com/All-feat/pallet-music-styles"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -19,24 +19,33 @@ codec = { package = "parity-scale-codec", version = "3.0.0", default-features = 
 scale-info = { version = "2.1.1", default-features = false, features = [
   "derive",
 ] }
+sp-std = { version = "4.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
 frame-support = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
+sp-core = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
+sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
 frame-system = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
 frame-benchmarking = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27", optional = true }
 
 [dev-dependencies]
-sp-core = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
 sp-io = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
 sp-runtime = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
+rand = "0.8.5"
 
 [features]
 default = ["std"]
 std = [
   "codec/std",
   "scale-info/std",
+  "sp-std/std",
+  "sp-core/std",
+  "sp-runtime/std",
   "frame-support/std",
   "frame-system/std",
   "frame-benchmarking/std",
 ]
 
-runtime-benchmarks = ["frame-benchmarking/runtime-benchmarks"]
+runtime-benchmarks = [
+    "frame-benchmarking/runtime-benchmarks",
+    "sp-runtime/runtime-benchmarks",
+]
 try-runtime = ["frame-support/try-runtime"]
