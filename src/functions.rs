@@ -1,5 +1,4 @@
 use super::*;
-use crate::Error::{NameTooLong, StylesCapacity};
 
 impl<T: Config> Pallet<T> {
     pub fn to_bounded_style(value: Vec<u8>) -> Result<BoundedStyle<T>, DispatchError> {

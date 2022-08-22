@@ -1,8 +1,8 @@
 use super::*;
 use crate::{mock::*, Event::*};
+use frame_support::traits::Contains;
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use rand::{thread_rng, Rng};
-use sp_runtime::traits::{BlakeTwo256, Hash};
 
 /// Helper function that generates a random string from a given length
 /// Should only be used for testing purpose
@@ -47,9 +47,20 @@ fn test_genesis() {
     });
 }
 
+#[test]
+fn test_contains_impl() {
+    new_test_ext(true).execute_with(|| {
+        assert!(MusicStylesPallet::contains(
+            &b"Rap".to_vec().try_into().unwrap()
+        ));
+        assert!(!MusicStylesPallet::contains(
+            &b"Not a style".to_vec().try_into().unwrap()
+        ))
+    })
+}
+
 mod add {
     use super::*;
-    use std::ops::{Deref, DerefMut};
 
     #[test]
     fn non_admin_cannot_add_a_style() {
@@ -98,9 +109,6 @@ mod add {
                 ));
             }
 
-            let styles: StylesTree<Test> = MusicStylesPallet::get_styles();
-            let key_styles = styles.keys();
-
             // One more should fail
             assert_noop!(
                 MusicStylesPallet::add_style(
@@ -147,10 +155,6 @@ mod add {
             // Check that the storage have been updated
             let after_styles: StylesTree<Test> = MusicStylesPallet::get_styles();
             assert!(after_styles != before_styles);
-            let added = after_styles
-                .get_key_value(&name.clone().try_into().unwrap())
-                .unwrap();
-
             assert!(after_styles.contains_key(&name.clone().try_into().unwrap()));
             let after_subs = after_styles.get(&name.clone().try_into().unwrap()).unwrap();
             for sub in subs.clone().unwrap().iter() {
@@ -245,9 +249,6 @@ mod add_sub_style {
                     vec![generate_random_name(i)]
                 ));
             }
-
-            let styles: StylesTree<Test> = MusicStylesPallet::get_styles();
-            let test = styles.get(&b"Raggae".to_vec().try_into().unwrap()).unwrap();
 
             // One more should fail
             assert_noop!(

@@ -9,6 +9,7 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 mod functions;
+mod impls;
 mod types;
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
@@ -50,7 +51,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn get_styles)]
-    pub(super) type Styles<T: Config> = StorageValue<_, StylesTree<T>, ValueQuery>;
+    pub type Styles<T: Config> = StorageValue<_, StylesTree<T>, ValueQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
