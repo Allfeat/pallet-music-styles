@@ -8,15 +8,19 @@ mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+
 mod functions;
 mod impls;
 mod types;
+mod weights;
+
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 pub use functions::*;
 pub use pallet::*;
 use sp_std::prelude::*;
 pub use types::*;
+pub use weights::WeightInfo;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -29,7 +33,7 @@ pub mod pallet {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-        /// Who can manage an music style list
+        /// Who can manage a music style list
         type AdminOrigin: EnsureOrigin<Self::Origin>;
 
         /// The maximum storable music style count
@@ -43,6 +47,9 @@ pub mod pallet {
         /// The maximum length of a music style name
         #[pallet::constant]
         type NameMaxLength: Get<u32>;
+
+        /// Weight information for extrinsics in this pallet.
+        type Weights: WeightInfo;
     }
 
     #[pallet::pallet]

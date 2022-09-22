@@ -72,6 +72,7 @@ impl pallet_music_styles::Config for Test {
     type MaxStyleCount = MaxStyleCount;
     type MaxSubStyleCount = MaxSubStyleCount;
     type NameMaxLength = NameMaxLength;
+    type Weights = ();
 }
 
 // Build genesis storage according to the mock runtime.
