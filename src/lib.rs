@@ -123,7 +123,10 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         /// Add new styles
         /// Supports also adding sub styles into it at the same ime
-        #[pallet::weight(0)]
+        #[pallet::weight(T::Weights::add_style(
+            T::NameMaxLength::get(),
+            T::MaxSubStyleCount::get()
+        ))]
         pub fn add_style(
             origin: OriginFor<T>,
             name: Vec<u8>,
@@ -169,7 +172,10 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::weight(0)]
+        #[pallet::weight(T::Weights::add_sub_style(
+            T::NameMaxLength::get(),
+            T::MaxSubStyleCount::get()
+        ))]
         pub fn add_sub_style(
             origin: OriginFor<T>,
             parent_style: Vec<u8>,
