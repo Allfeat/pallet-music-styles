@@ -1,10 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// <https://docs.substrate.io/v3/runtime/frame>
-pub use pallet::*;
-
 #[cfg(test)]
 mod mock;
 
@@ -14,89 +9,267 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+mod functions;
+mod impls;
+mod types;
+mod weights;
+
+use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::*;
+pub use functions::*;
+pub use pallet::*;
+use sp_std::prelude::*;
+pub use types::*;
+pub use weights::WeightInfo;
+
 #[frame_support::pallet]
 pub mod pallet {
-    use frame_support::pallet_prelude::*;
-    use frame_system::pallet_prelude::*;
+    use super::*;
+    use sp_runtime::BoundedBTreeMap;
 
     /// Configure the pallet by specifying the parameters and types on which it depends.
     #[pallet::config]
     pub trait Config: frame_system::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+        /// Who can manage a music style list
+        type AdminOrigin: EnsureOrigin<Self::Origin>;
+
+        /// The maximum storable music style count
+        #[pallet::constant]
+        type MaxStyleCount: Get<u32>;
+
+        /// The maximum storable music sub style count
+        #[pallet::constant]
+        type MaxSubStyleCount: Get<u32>;
+
+        /// The maximum length of a music style name
+        #[pallet::constant]
+        type NameMaxLength: Get<u32>;
+
+        /// Weight information for extrinsics in this pallet.
+        type Weights: WeightInfo;
     }
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(_);
+    pub struct Pallet<T>(PhantomData<T>);
 
-    // The pallet's runtime storage items.
-    // https://docs.substrate.io/v3/runtime/storage
     #[pallet::storage]
-    #[pallet::getter(fn something)]
-    // Learn more about declaring storage items:
-    // https://docs.substrate.io/v3/runtime/storage#declaring-storage-items
-    pub type Something<T> = StorageValue<_, u32>;
+    #[pallet::getter(fn get_styles)]
+    pub type Styles<T: Config> = StorageValue<_, StylesTree<T>, ValueQuery>;
 
-    // Pallets use events to inform users when important changes are made.
-    // https://docs.substrate.io/v3/runtime/events-and-errors
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// Event documentation should end with an array that provides descriptive names for event
-        /// parameters. [something, who]
-        SomethingStored(u32, T::AccountId),
+        /// A new music style has been added
+        StyleAdded(Vec<u8>),
+        /// A new sub style has been added to parent
+        SubStyleAdded(Vec<u8>),
+        /// A style name has been updated (old, new)
+        StyleNameUpdated(Vec<u8>, Vec<u8>),
+        /// A sub-style name has been updated (old, new)
+        SubStyleNameUpdated(Vec<u8>, Vec<u8>),
     }
 
-    // Errors inform users that something went wrong.
     #[pallet::error]
     pub enum Error<T> {
-        /// Error names should be descriptive.
-        NoneValue,
-        /// Errors should have helpful documentation associated with them.
-        StorageOverflow,
+        /// Music style too long
+        NameTooLong,
+        /// Music style already exists
+        NameAlreadyExists,
+        /// Music style not found
+        StyleNotFound,
+        /// The music styles vec is full
+        StylesCapacity,
     }
 
-    // Dispatchable functions allows users to interact with the pallet and invoke state changes.
-    // These functions materialize as "extrinsics", which are often compared to transactions.
-    // Dispatchable functions must be annotated with a weight and must return a DispatchResult.
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T: Config> {
+        /// The existing music styles at the genesis
+        pub styles: Vec<(Vec<u8>, Vec<Vec<u8>>)>,
+        // Note: Use phantom data because we need a Generic in the GenesisConfig
+        pub phantom: PhantomData<T>,
+    }
+
+    #[cfg(feature = "std")]
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self {
+                styles: Default::default(),
+                phantom: Default::default(),
+            }
+        }
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+        fn build(&self) {
+            let mut styles: StylesTree<T> = BoundedBTreeMap::new();
+
+            for (input_name, input_sub_styles) in &self.styles {
+                let parent = Pallet::<T>::to_bounded_style(input_name.clone()).unwrap();
+                let subs = Pallet::<T>::to_bounded_sub_styles(input_sub_styles.clone()).unwrap();
+
+                styles.try_insert(parent, subs).unwrap();
+            }
+
+            <Styles<T>>::put(styles);
+        }
+    }
+
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /// An example dispatchable that takes a singles value as a parameter, writes the value to
-        /// storage and emits an event. This function must be dispatched by a signed extrinsic.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-        pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResult {
-            // Check that the extrinsic was signed and get the signer.
-            // This function will return an error if the extrinsic is not signed.
-            // https://docs.substrate.io/v3/runtime/origins
-            let who = ensure_signed(origin)?;
+        /// Add new styles
+        /// Supports also adding sub styles into it at the same ime
+        #[pallet::weight(T::Weights::add_style(
+            T::NameMaxLength::get(),
+            T::MaxSubStyleCount::get()
+        ))]
+        pub fn add_style(
+            origin: OriginFor<T>,
+            name: Vec<u8>,
+            sub: Option<Vec<Vec<u8>>>,
+        ) -> DispatchResult {
+            T::AdminOrigin::ensure_origin(origin.clone())?;
 
-            // Update storage.
-            <Something<T>>::put(something);
+            let mut styles: StylesTree<T> = Self::get_styles();
 
-            // Emit an event.
-            Self::deposit_event(Event::SomethingStored(something, who));
-            // Return a successful DispatchResultWithPostInfo
+            let parent_name = Self::to_bounded_style(name.clone())?;
+
+            if styles.contains_key(&parent_name) {
+                return Err(Error::<T>::NameAlreadyExists)?;
+            } else {
+                styles
+                    .try_insert(parent_name.clone(), Default::default())
+                    .map_err(|_| Error::<T>::StylesCapacity)?;
+            }
+
+            match sub {
+                Some(ref subs) => {
+                    let bounded_subs = Self::to_bounded_sub_styles(subs.clone())?;
+
+                    Self::checked_add_subs(&mut styles, bounded_subs, parent_name)?;
+                }
+                // Not adding subs
+                None => (),
+            }
+
+            <Styles<T>>::put(styles);
+
+            // Emitting events
+            Self::deposit_event(Event::StyleAdded(name));
+            match sub {
+                Some(subs) => {
+                    for sub in subs {
+                        Self::deposit_event(Event::SubStyleAdded(sub))
+                    }
+                }
+                None => (),
+            }
+
             Ok(())
         }
 
-        /// An example dispatchable that may throw a custom error.
-        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1))]
-        pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
-            let _who = ensure_signed(origin)?;
+        #[pallet::weight(T::Weights::add_sub_style(
+            T::NameMaxLength::get(),
+            T::MaxSubStyleCount::get()
+        ))]
+        pub fn add_sub_style(
+            origin: OriginFor<T>,
+            parent_style: Vec<u8>,
+            subs_style: Vec<Vec<u8>>,
+        ) -> DispatchResult {
+            T::AdminOrigin::ensure_origin(origin.clone())?;
 
-            // Read a value from storage.
-            match <Something<T>>::get() {
-                // Return an error if the value has not been set.
-                None => return Err(Error::<T>::NoneValue.into()),
-                Some(old) => {
-                    // Increment the value read from storage; will error in the event of overflow.
-                    let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-                    // Update the value in storage with the incremented result.
-                    <Something<T>>::put(new);
-                    Ok(())
-                }
+            let mut styles: StylesTree<T> = Self::get_styles();
+
+            let bounded_parent_style = Self::to_bounded_style(parent_style)?;
+
+            if !styles.contains_key(&bounded_parent_style) {
+                return Err(Error::<T>::StyleNotFound)?;
             }
+
+            let bounded_subs = Self::to_bounded_sub_styles(subs_style.clone())?;
+
+            Self::checked_add_subs(&mut styles, bounded_subs, bounded_parent_style)?;
+
+            <Styles<T>>::put(styles);
+
+            for sub in subs_style {
+                Self::deposit_event(Event::SubStyleAdded(sub))
+            }
+
+            Ok(())
         }
+
+        /*#[pallet::weight(0)]
+        pub fn update_style_name(
+            origin: OriginFor<T>,
+            id: H256,
+            new_name: Vec<u8>,
+        ) -> DispatchResult {
+            T::AdminOrigin::ensure_origin(origin.clone())?;
+
+            let bounded_name = Self::try_into_bounded_name(new_name.clone())?;
+            let mut styles = <Styles<T>>::get();
+            let style_kind = Self::get_style(id, &styles);
+
+            match style_kind {
+                StyleKind::MainStyle(style) => {
+                    // Check if the name is free at main styles level
+                    if styles.iter().find(|s| s.name == bounded_name).is_some() {
+                        return Err(Error::<T>::NameAlreadyExists)?;
+                    }
+
+                    // Get and mutate style
+                    let mut style = styles
+                        .iter_mut()
+                        .find(|s| s.id == style.id)
+                        .ok_or_else(|| Error::<T>::StyleNotFound)?;
+
+                    let old_style = style.clone();
+                    style.name = bounded_name;
+                    let new_style = style.clone();
+
+                    <Styles<T>>::put(styles);
+                    Self::deposit_event(Event::StyleNameUpdated(old_style, new_style));
+                }
+                StyleKind::SubStyle(sub_style) => {
+                    // Get the parent style
+                    let parent_style = styles
+                        .iter_mut()
+                        .find(|s| s.id == sub_style.parent_id)
+                        .ok_or_else(|| Error::<T>::StyleNotFound)?;
+
+                    // check is the new name is not already used in sub styles.
+                    if let Some(_) = parent_style
+                        .sub_styles
+                        .iter()
+                        .find(|s| s.name == bounded_name)
+                    {
+                        return Err(Error::<T>::NameAlreadyExists)?;
+                    }
+
+                    // Get and mutate style
+                    let sub_style = parent_style
+                        .sub_styles
+                        .iter_mut()
+                        .find(|s| s.id == sub_style.id)
+                        .ok_or_else(|| Error::<T>::StyleNotFound)?;
+
+                    let old_sub_style = sub_style.clone();
+                    sub_style.name = bounded_name;
+                    let new_sub_style = sub_style.clone();
+
+                    <Styles<T>>::put(styles);
+                    Self::deposit_event(Event::SubStyleNameUpdated(old_sub_style, new_sub_style));
+                }
+                StyleKind::None => Err(Error::<T>::StyleNotFound)?,
+            };
+
+            Ok(())
+        }*/
     }
 }
