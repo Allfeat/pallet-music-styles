@@ -60,6 +60,6 @@ benchmarks! {
     verify {
         assert_last_event::<T>(Event::<T>::SubStyleAdded(new_subs_style.last().unwrap().clone()).into());
     }
-}
 
-impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(false), crate::mock::Test);
+    impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(false), crate::mock::Test);
+}
