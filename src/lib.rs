@@ -12,7 +12,7 @@ mod benchmarking;
 mod functions;
 mod impls;
 mod types;
-mod weights;
+pub mod weights;
 
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
