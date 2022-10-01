@@ -1,22 +1,18 @@
 use super::*;
-use crate::{BoundedStyle, Pallet, Styles};
-use frame_support::traits::Contains;
+use allfeat_support::types::StyleName;
+use allfeat_support::MusicStylesProvider;
 
-impl<T: Config> Contains<BoundedStyle<T>> for Pallet<T> {
-    fn contains(t: &BoundedStyle<T>) -> bool {
-        let styles = <Styles<T>>::get();
+impl<T: Config> MusicStylesProvider for Pallet<T> {
+    type Styles = Styles;
+    type StyleName = StyleName;
 
-        // checking in parent styles
-        if styles.contains_key(t) {
-            return true;
-        }
-        // checking in sub styles
-        for style in styles.values() {
-            if style.contains(t) {
-                return true;
-            }
-        }
-
-        false
+    fn styles() -> Self::Styles {
+        todo!()
+    }
+    fn parent_styles() -> Vec<Self::StyleName> {
+        todo!()
+    }
+    fn exist(style_name: &Self::StyleName) -> bool {
+        todo!()
     }
 }
