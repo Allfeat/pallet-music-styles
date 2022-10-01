@@ -1,6 +1,7 @@
 //! Benchmarking setup for pallet-music-styles
 
 use super::*;
+use allfeat_support::types::MaxNameLength;
 
 #[allow(unused)]
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
@@ -14,8 +15,8 @@ benchmarks! {
     where_clause { where T: Config }
 
     add_style {
-        let n in 1..T::NameMaxLength::get();
-        let x in 0..T::MaxSubStyleCount::get();
+        let n in 1..<MaxNameLength as Get<u32>>::get();
+        let x in 0..<MaxSubStyles as Get<u32>>::get();
 
         let new_style: Vec<u8> = vec![0x61; n as usize];
         let mut new_sub_styles: Option<Vec<Vec<u8>>> = None;
@@ -44,8 +45,8 @@ benchmarks! {
     }
 
     add_sub_style {
-        let n in 1..T::NameMaxLength::get();
-        let x in 1..T::MaxSubStyleCount::get();
+        let n in 1..<MaxNameLength as Get<u32>>::get();
+        let x in 1..<MaxSubStyles as Get<u32>>::get();
 
         let parent_style = vec![0x61, n as u8];
         let mut new_subs_style: Vec<Vec<u8>> = vec![];

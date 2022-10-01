@@ -1,25 +1,23 @@
 use super::*;
 
 impl<T: Config> Pallet<T> {
-    pub fn to_bounded_style(value: Vec<u8>) -> Result<BoundedStyle<T>, DispatchError> {
+    pub fn to_bounded_style(value: Vec<u8>) -> Result<BoundedStyle, DispatchError> {
         Ok(value.try_into().map_err(|_| Error::<T>::NameTooLong)?)
     }
 
-    pub fn to_bounded_sub_styles(
-        value: Vec<Vec<u8>>,
-    ) -> Result<BoundedSubStyles<T>, DispatchError> {
-        let mut subs: BoundedSubStyles<T> = Default::default();
+    pub fn to_bounded_sub_styles(value: Vec<Vec<u8>>) -> Result<BoundedSubStyles, DispatchError> {
+        let mut subs: BoundedSubStyles = Default::default();
         for sub in value {
-            subs.try_push(BoundedStyle::<T>::try_from(sub).map_err(|_| Error::<T>::NameTooLong)?)
+            subs.try_push(BoundedStyle::try_from(sub).map_err(|_| Error::<T>::NameTooLong)?)
                 .map_err(|_| Error::<T>::StylesCapacity)?
         }
         Ok(subs)
     }
 
     pub fn checked_add_subs(
-        tree: &mut StylesTree<T>,
-        subs: BoundedSubStyles<T>,
-        into: BoundedStyle<T>,
+        tree: &mut StylesTree,
+        subs: BoundedSubStyles,
+        into: BoundedStyle,
     ) -> DispatchResult {
         match tree.get_mut(&into) {
             Some(s) => {

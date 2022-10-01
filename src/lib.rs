@@ -14,6 +14,7 @@ mod impls;
 mod types;
 pub mod weights;
 
+use allfeat_support::types::{MaxNameLength, MaxSubStyles, Styles};
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 pub use functions::*;
@@ -36,18 +37,6 @@ pub mod pallet {
         /// Who can manage a music style list
         type AdminOrigin: EnsureOrigin<Self::Origin>;
 
-        /// The maximum storable music style count
-        #[pallet::constant]
-        type MaxStyleCount: Get<u32>;
-
-        /// The maximum storable music sub style count
-        #[pallet::constant]
-        type MaxSubStyleCount: Get<u32>;
-
-        /// The maximum length of a music style name
-        #[pallet::constant]
-        type NameMaxLength: Get<u32>;
-
         /// Weight information for extrinsics in this pallet.
         type Weights: WeightInfo;
     }
@@ -58,7 +47,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn get_styles)]
-    pub type Styles<T: Config> = StorageValue<_, StylesTree<T>, ValueQuery>;
+    pub type Styles<T: Config> = StorageValue<_, StylesTree, ValueQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -106,7 +95,7 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
-            let mut styles: StylesTree<T> = BoundedBTreeMap::new();
+            let mut styles: StylesTree = BoundedBTreeMap::new();
 
             for (input_name, input_sub_styles) in &self.styles {
                 let parent = Pallet::<T>::to_bounded_style(input_name.clone()).unwrap();
@@ -124,8 +113,8 @@ pub mod pallet {
         /// Add new styles
         /// Supports also adding sub styles into it at the same ime
         #[pallet::weight(T::Weights::add_style(
-            T::NameMaxLength::get(),
-            T::MaxSubStyleCount::get()
+            <MaxNameLength as Get<u32>>::get(),
+            <MaxSubStyles as Get<u32>>::get()
         ))]
         pub fn add_style(
             origin: OriginFor<T>,
@@ -134,7 +123,7 @@ pub mod pallet {
         ) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
-            let mut styles: StylesTree<T> = Self::get_styles();
+            let mut styles: StylesTree = Self::get_styles();
 
             let parent_name = Self::to_bounded_style(name.clone())?;
 
@@ -173,8 +162,8 @@ pub mod pallet {
         }
 
         #[pallet::weight(T::Weights::add_sub_style(
-            T::NameMaxLength::get(),
-            T::MaxSubStyleCount::get()
+            <MaxNameLength as Get<u32>>::get(),
+            <MaxSubStyles as Get<u32>>::get()
         ))]
         pub fn add_sub_style(
             origin: OriginFor<T>,
@@ -183,7 +172,7 @@ pub mod pallet {
         ) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
-            let mut styles: StylesTree<T> = Self::get_styles();
+            let mut styles: StylesTree = Self::get_styles();
 
             let bounded_parent_style = Self::to_bounded_style(parent_style)?;
 

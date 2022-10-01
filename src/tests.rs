@@ -30,11 +30,11 @@ fn assert_last_event(event: super::Event<Test>) {
 #[test]
 fn test_genesis() {
     new_test_ext(true).execute_with(|| {
-        let styles: StylesTree<Test> = MusicStylesPallet::get_styles();
+        let styles: StylesTree = MusicStylesPallet::get_styles();
 
         // Create "Rock" style from scratch to compare to on-chain "Rock" sub fields
-        let test_rock_style: BoundedStyle<Test> = Vec::<u8>::from("Rock").try_into().unwrap();
-        let test_rock_substyle: BoundedSubStyles<Test> =
+        let test_rock_style: BoundedStyle = Vec::<u8>::from("Rock").try_into().unwrap();
+        let test_rock_substyle: BoundedSubStyles =
             vec![Vec::<u8>::from("Hardcore").try_into().unwrap()]
                 .try_into()
                 .unwrap();
@@ -47,20 +47,9 @@ fn test_genesis() {
     });
 }
 
-#[test]
-fn test_contains_impl() {
-    new_test_ext(true).execute_with(|| {
-        assert!(MusicStylesPallet::contains(
-            &b"Rap".to_vec().try_into().unwrap()
-        ));
-        assert!(!MusicStylesPallet::contains(
-            &b"Not a style".to_vec().try_into().unwrap()
-        ))
-    })
-}
-
 mod add {
     use super::*;
+    use allfeat_support::types::{MaxNameLength, MaxParentStyles};
 
     #[test]
     fn non_admin_cannot_add_a_style() {
@@ -75,9 +64,10 @@ mod add {
     #[test]
     fn too_long_style_name_should_fail() {
         new_test_ext(false).execute_with(|| {
-            let long_name = generate_random_string((NameMaxLength::get() as usize) + 10)
-                .as_bytes()
-                .to_vec();
+            let long_name =
+                generate_random_string((<MaxNameLength as Get<u32>>::get() as usize) + 10)
+                    .as_bytes()
+                    .to_vec();
 
             // Too long main style name
             assert_noop!(
@@ -101,7 +91,7 @@ mod add {
     fn should_fail_before_exceeded_main_storage_bound() {
         new_test_ext(false).execute_with(|| {
             // Fill the storage
-            for i in 0..MaxStyleCount::get() {
+            for i in 0..<MaxParentStyles as Get<u32>>::get() {
                 assert_ok!(MusicStylesPallet::add_style(
                     Origin::root(),
                     generate_random_name(i),
@@ -113,7 +103,7 @@ mod add {
             assert_noop!(
                 MusicStylesPallet::add_style(
                     Origin::root(),
-                    generate_random_name(MaxStyleCount::get()),
+                    generate_random_name(<MaxParentStyles as Get<u32>>::get()),
                     None
                 ),
                 Error::<Test>::StylesCapacity
@@ -126,7 +116,7 @@ mod add {
         new_test_ext(false).execute_with(|| {
             // Create sub style vec with too many items
             let mut sub = vec![];
-            for i in 0..MaxSubStyleCount::get() + 2 {
+            for i in 0..<MaxSubStyles as Get<u32>>::get() + 2 {
                 sub.push(generate_random_name(i));
             }
 
@@ -140,7 +130,7 @@ mod add {
     #[test]
     fn add_should_mutate_chain_and_emit_event() {
         new_test_ext(false).execute_with(|| {
-            let before_styles: StylesTree<Test> = MusicStylesPallet::get_styles();
+            let before_styles: StylesTree = MusicStylesPallet::get_styles();
 
             let name = generate_random_name(1);
             let sub_name = generate_random_name(2);
@@ -153,12 +143,12 @@ mod add {
             ));
 
             // Check that the storage have been updated
-            let after_styles: StylesTree<Test> = MusicStylesPallet::get_styles();
+            let after_styles: StylesTree = MusicStylesPallet::get_styles();
             assert!(after_styles != before_styles);
             assert!(after_styles.contains_key(&name.clone().try_into().unwrap()));
             let after_subs = after_styles.get(&name.clone().try_into().unwrap()).unwrap();
             for sub in subs.clone().unwrap().iter() {
-                let bounded_sub: BoundedStyle<Test> = sub.clone().try_into().unwrap();
+                let bounded_sub: BoundedStyle = sub.clone().try_into().unwrap();
                 after_subs.iter().find(|sub| *sub == &bounded_sub).unwrap();
             }
 
@@ -179,6 +169,7 @@ mod add {
 
 mod add_sub_style {
     use super::*;
+    use allfeat_support::types::MaxNameLength;
 
     #[test]
     fn non_admin_cannot_add_sub_style() {
@@ -225,9 +216,10 @@ mod add_sub_style {
     #[test]
     fn too_long_style_name_should_fail() {
         new_test_ext(true).execute_with(|| {
-            let long_name = generate_random_string((NameMaxLength::get() as usize) + 10)
-                .as_bytes()
-                .to_vec();
+            let long_name =
+                generate_random_string((<MaxNameLength as Get<u32>>::get() as usize) + 10)
+                    .as_bytes()
+                    .to_vec();
 
             // Too long main style name
             assert_noop!(
@@ -242,7 +234,7 @@ mod add_sub_style {
         // The "Reggae" parent style is empty
         new_test_ext(true).execute_with(|| {
             // Fill the storage
-            for i in 0..MaxSubStyleCount::get() {
+            for i in 0..<MaxSubStyles as Get<u32>>::get() {
                 assert_ok!(MusicStylesPallet::add_sub_style(
                     Origin::root(),
                     b"Raggae".to_vec(),
@@ -266,7 +258,7 @@ mod add_sub_style {
     fn add_sub_style_should_mutate_chain_and_emit_event() {
         // The "Reggae" parent style is empty
         new_test_ext(true).execute_with(|| {
-            let before_styles: StylesTree<Test> = MusicStylesPallet::get_styles();
+            let before_styles: StylesTree = MusicStylesPallet::get_styles();
 
             let new_name = b"Victory".to_vec();
             assert_ok!(MusicStylesPallet::add_sub_style(
@@ -275,7 +267,7 @@ mod add_sub_style {
                 vec![new_name.clone()]
             ));
 
-            let after_styles: StylesTree<Test> = MusicStylesPallet::get_styles();
+            let after_styles: StylesTree = MusicStylesPallet::get_styles();
 
             // Check that the storage have been updated
             assert!(before_styles != after_styles);
@@ -284,7 +276,7 @@ mod add_sub_style {
                 .get(&b"Rap".to_vec().try_into().unwrap())
                 .unwrap()
                 .iter()
-                .find(|s| *s == &BoundedStyle::<Test>::from(new_name.clone().try_into().unwrap()))
+                .find(|s| *s == &BoundedStyle::from(new_name.clone().try_into().unwrap()))
                 .unwrap();
 
             // Check that the event has been called
