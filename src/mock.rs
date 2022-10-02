@@ -3,8 +3,8 @@ use crate::{
     mock::sp_api_hidden_includes_construct_runtime::hidden_include::traits::GenesisBuild,
 };
 use frame_support::{
+    construct_runtime,
     traits::{ConstU16, ConstU64},
-    {construct_runtime, parameter_types},
 };
 use frame_system::EnsureRoot;
 use sp_core::H256;

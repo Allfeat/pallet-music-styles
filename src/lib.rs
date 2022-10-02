@@ -47,7 +47,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn get_styles)]
-    pub type Styles<T: Config> = StorageValue<_, StylesTree, ValueQuery>;
+    pub(super) type Styles<T: Config> = StorageValue<_, StylesTree, ValueQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
