@@ -1,6 +1,7 @@
 use super::*;
 use crate::{mock::*, Event::*};
-use frame_support::traits::Contains;
+use allfeat_support::types::StyleName;
+use allfeat_support::MusicStylesProvider;
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use rand::{thread_rng, Rng};
 
@@ -45,6 +46,21 @@ fn test_genesis() {
             Some((&test_rock_style, &test_rock_substyle))
         );
     });
+}
+
+#[test]
+fn test_provider_impl() {
+    new_test_ext(true).execute_with(|| {
+        let parent_style_name: StyleName = b"Rock".to_vec().try_into().unwrap();
+        assert_eq!(
+            MusicStylesPallet::exist_from(b"Rock".to_vec()).unwrap(),
+            Some(parent_style_name)
+        );
+        assert_eq!(
+            MusicStylesPallet::exist_from(b"Unexisting".to_vec()).unwrap(),
+            None
+        )
+    })
 }
 
 mod add {
