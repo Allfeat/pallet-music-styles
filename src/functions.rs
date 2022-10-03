@@ -1,25 +1,26 @@
 use super::*;
+use allfeat_support::types::music::style::MusicSubStyles;
 
 impl<T: Config> Pallet<T> {
-    pub fn to_bounded_style(value: Vec<u8>) -> Result<BoundedStyle<T>, DispatchError> {
+    pub(super) fn to_bounded_style(value: Vec<u8>) -> Result<MusicStyleName, DispatchError> {
         Ok(value.try_into().map_err(|_| Error::<T>::NameTooLong)?)
     }
 
-    pub fn to_bounded_sub_styles(
+    pub(super) fn to_bounded_sub_styles(
         value: Vec<Vec<u8>>,
-    ) -> Result<BoundedSubStyles<T>, DispatchError> {
-        let mut subs: BoundedSubStyles<T> = Default::default();
+    ) -> Result<MusicSubStyles, DispatchError> {
+        let mut subs: MusicSubStyles = Default::default();
         for sub in value {
-            subs.try_push(BoundedStyle::<T>::try_from(sub).map_err(|_| Error::<T>::NameTooLong)?)
+            subs.try_push(MusicStyleName::try_from(sub).map_err(|_| Error::<T>::NameTooLong)?)
                 .map_err(|_| Error::<T>::StylesCapacity)?
         }
         Ok(subs)
     }
 
-    pub fn checked_add_subs(
-        tree: &mut StylesTree<T>,
-        subs: BoundedSubStyles<T>,
-        into: BoundedStyle<T>,
+    pub(super) fn checked_add_subs(
+        tree: &mut MusicStyleDB,
+        subs: MusicSubStyles,
+        into: MusicStyleName,
     ) -> DispatchResult {
         match tree.get_mut(&into) {
             Some(s) => {
