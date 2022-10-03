@@ -1,7 +1,6 @@
 use super::*;
 use crate::{mock::*, Event::*};
-use allfeat_support::types::StyleName;
-use allfeat_support::MusicStylesProvider;
+use allfeat_support::types::music::style::{MaxParentStyles, MusicSubStyles};
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use rand::{thread_rng, Rng};
 
@@ -31,11 +30,11 @@ fn assert_last_event(event: super::Event<Test>) {
 #[test]
 fn test_genesis() {
     new_test_ext(true).execute_with(|| {
-        let styles: StylesTree = MusicStylesPallet::get_styles();
+        let styles: MusicStyleDB = MusicStylesPallet::get_styles();
 
         // Create "Rock" style from scratch to compare to on-chain "Rock" sub fields
-        let test_rock_style: BoundedStyle = Vec::<u8>::from("Rock").try_into().unwrap();
-        let test_rock_substyle: BoundedSubStyles =
+        let test_rock_style: MusicStyleName = Vec::<u8>::from("Rock").try_into().unwrap();
+        let test_rock_substyle: MusicSubStyles =
             vec![Vec::<u8>::from("Hardcore").try_into().unwrap()]
                 .try_into()
                 .unwrap();
@@ -51,7 +50,7 @@ fn test_genesis() {
 #[test]
 fn test_provider_impl() {
     new_test_ext(true).execute_with(|| {
-        let parent_style_name: StyleName = b"Rock".to_vec().try_into().unwrap();
+        let parent_style_name: MusicStyleName = b"Rock".to_vec().try_into().unwrap();
         assert_eq!(
             MusicStylesPallet::exist_from(b"Rock".to_vec()).unwrap(),
             Some(parent_style_name)
@@ -65,7 +64,6 @@ fn test_provider_impl() {
 
 mod add {
     use super::*;
-    use allfeat_support::types::{MaxNameLength, MaxParentStyles};
 
     #[test]
     fn non_admin_cannot_add_a_style() {
@@ -146,7 +144,7 @@ mod add {
     #[test]
     fn add_should_mutate_chain_and_emit_event() {
         new_test_ext(false).execute_with(|| {
-            let before_styles: StylesTree = MusicStylesPallet::get_styles();
+            let before_styles: MusicStyleDB = MusicStylesPallet::get_styles();
 
             let name = generate_random_name(1);
             let sub_name = generate_random_name(2);
@@ -159,12 +157,12 @@ mod add {
             ));
 
             // Check that the storage have been updated
-            let after_styles: StylesTree = MusicStylesPallet::get_styles();
+            let after_styles: MusicStyleDB = MusicStylesPallet::get_styles();
             assert!(after_styles != before_styles);
             assert!(after_styles.contains_key(&name.clone().try_into().unwrap()));
             let after_subs = after_styles.get(&name.clone().try_into().unwrap()).unwrap();
             for sub in subs.clone().unwrap().iter() {
-                let bounded_sub: BoundedStyle = sub.clone().try_into().unwrap();
+                let bounded_sub: MusicStyleName = sub.clone().try_into().unwrap();
                 after_subs.iter().find(|sub| *sub == &bounded_sub).unwrap();
             }
 
@@ -185,7 +183,6 @@ mod add {
 
 mod add_sub_style {
     use super::*;
-    use allfeat_support::types::MaxNameLength;
 
     #[test]
     fn non_admin_cannot_add_sub_style() {
@@ -274,7 +271,7 @@ mod add_sub_style {
     fn add_sub_style_should_mutate_chain_and_emit_event() {
         // The "Reggae" parent style is empty
         new_test_ext(true).execute_with(|| {
-            let before_styles: StylesTree = MusicStylesPallet::get_styles();
+            let before_styles: MusicStyleDB = MusicStylesPallet::get_styles();
 
             let new_name = b"Victory".to_vec();
             assert_ok!(MusicStylesPallet::add_sub_style(
@@ -283,7 +280,7 @@ mod add_sub_style {
                 vec![new_name.clone()]
             ));
 
-            let after_styles: StylesTree = MusicStylesPallet::get_styles();
+            let after_styles: MusicStyleDB = MusicStylesPallet::get_styles();
 
             // Check that the storage have been updated
             assert!(before_styles != after_styles);
@@ -292,7 +289,7 @@ mod add_sub_style {
                 .get(&b"Rap".to_vec().try_into().unwrap())
                 .unwrap()
                 .iter()
-                .find(|s| *s == &BoundedStyle::from(new_name.clone().try_into().unwrap()))
+                .find(|s| *s == &MusicStyleName::from(new_name.clone().try_into().unwrap()))
                 .unwrap();
 
             // Check that the event has been called

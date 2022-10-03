@@ -11,22 +11,20 @@ mod benchmarking;
 
 mod functions;
 mod impls;
-mod types;
 pub mod weights;
 
-use allfeat_support::types::{MaxNameLength, MaxSubStyles, Styles};
+use allfeat_support::prelude::*;
+use allfeat_support::types::music::style::{MaxNameLength, MaxSubStyles};
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 pub use functions::*;
 pub use pallet::*;
 use sp_std::prelude::*;
-pub use types::*;
 pub use weights::WeightInfo;
 
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use sp_runtime::BoundedBTreeMap;
 
     /// Configure the pallet by specifying the parameters and types on which it depends.
     #[pallet::config]
@@ -47,7 +45,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn get_styles)]
-    pub(super) type Styles<T: Config> = StorageValue<_, StylesTree, ValueQuery>;
+    pub(super) type Styles<T: Config> = StorageValue<_, MusicStyleDB, ValueQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -95,7 +93,7 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
-            let mut styles: StylesTree = BoundedBTreeMap::new();
+            let mut styles = MusicStyleDB::new();
 
             for (input_name, input_sub_styles) in &self.styles {
                 let parent = Pallet::<T>::to_bounded_style(input_name.clone()).unwrap();
@@ -123,7 +121,7 @@ pub mod pallet {
         ) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
-            let mut styles: StylesTree = Self::get_styles();
+            let mut styles: MusicStyleDB = Self::get_styles();
 
             let parent_name = Self::to_bounded_style(name.clone())?;
 
@@ -172,7 +170,7 @@ pub mod pallet {
         ) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin.clone())?;
 
-            let mut styles: StylesTree = Self::get_styles();
+            let mut styles: MusicStyleDB = Self::get_styles();
 
             let bounded_parent_style = Self::to_bounded_style(parent_style)?;
 

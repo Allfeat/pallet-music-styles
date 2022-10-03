@@ -1,7 +1,6 @@
 //! Benchmarking setup for pallet-music-styles
 
 use super::*;
-use allfeat_support::types::MaxNameLength;
 
 #[allow(unused)]
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
