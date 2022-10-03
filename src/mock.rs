@@ -3,8 +3,8 @@ use crate::{
     mock::sp_api_hidden_includes_construct_runtime::hidden_include::traits::GenesisBuild,
 };
 use frame_support::{
+    construct_runtime,
     traits::{ConstU16, ConstU64},
-    {construct_runtime, parameter_types},
 };
 use frame_system::EnsureRoot;
 use sp_core::H256;
@@ -60,18 +60,9 @@ impl frame_system::Config for Test {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-parameter_types! {
-    pub const MaxStyleCount: u32 = 5;
-    pub const MaxSubStyleCount: u32 = 5;
-    pub const NameMaxLength: u32 = 20;
-}
-
 impl pallet_music_styles::Config for Test {
     type Event = Event;
     type AdminOrigin = EnsureRoot<AccountId>;
-    type MaxStyleCount = MaxStyleCount;
-    type MaxSubStyleCount = MaxSubStyleCount;
-    type NameMaxLength = NameMaxLength;
     type Weights = ();
 }
 
