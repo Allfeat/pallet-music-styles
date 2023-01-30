@@ -25,7 +25,7 @@ fn generate_random_name(i: u32) -> Vec<u8> {
 
 /// Panic is the given event is different that the last emitted event
 fn assert_last_event(event: super::Event<Test>) {
-    System::assert_last_event(mock::Event::MusicStylesPallet(event))
+    System::assert_last_event(mock::RuntimeEvent::MusicStylesPallet(event))
 }
 #[test]
 fn test_genesis() {
@@ -69,7 +69,11 @@ mod add {
     fn non_admin_cannot_add_a_style() {
         new_test_ext(false).execute_with(|| {
             assert_noop!(
-                MusicStylesPallet::add_style(Origin::signed(BOB), b"Reggae".to_vec().into(), None),
+                MusicStylesPallet::add_style(
+                    RuntimeOrigin::signed(BOB),
+                    b"Reggae".to_vec().into(),
+                    None
+                ),
                 BadOrigin
             );
         });
@@ -85,14 +89,14 @@ mod add {
 
             // Too long main style name
             assert_noop!(
-                MusicStylesPallet::add_style(Origin::root(), long_name.clone(), None),
+                MusicStylesPallet::add_style(RuntimeOrigin::root(), long_name.clone(), None),
                 Error::<Test>::NameTooLong
             );
 
             // Too long name in sub style
             assert_noop!(
                 MusicStylesPallet::add_style(
-                    Origin::root(),
+                    RuntimeOrigin::root(),
                     b"test".to_vec(),
                     Some(vec![long_name])
                 ),
@@ -107,7 +111,7 @@ mod add {
             // Fill the storage
             for i in 0..<MaxParentStyles as Get<u32>>::get() {
                 assert_ok!(MusicStylesPallet::add_style(
-                    Origin::root(),
+                    RuntimeOrigin::root(),
                     generate_random_name(i),
                     None
                 ));
@@ -116,7 +120,7 @@ mod add {
             // One more should fail
             assert_noop!(
                 MusicStylesPallet::add_style(
-                    Origin::root(),
+                    RuntimeOrigin::root(),
                     generate_random_name(<MaxParentStyles as Get<u32>>::get()),
                     None
                 ),
@@ -135,7 +139,7 @@ mod add {
             }
 
             assert_noop!(
-                MusicStylesPallet::add_style(Origin::root(), b"Test".to_vec(), Some(sub)),
+                MusicStylesPallet::add_style(RuntimeOrigin::root(), b"Test".to_vec(), Some(sub)),
                 Error::<Test>::StylesCapacity
             );
         });
@@ -151,7 +155,7 @@ mod add {
             let subs = Some(Vec::from([sub_name.clone()]));
 
             assert_ok!(MusicStylesPallet::add_style(
-                Origin::root(),
+                RuntimeOrigin::root(),
                 name.clone(),
                 subs.clone()
             ));
@@ -169,12 +173,12 @@ mod add {
             // Check that the events has been called
             assert_eq!(
                 System::events()[0].event,
-                mock::Event::MusicStylesPallet(StyleAdded(name.clone()))
+                mock::RuntimeEvent::MusicStylesPallet(StyleAdded(name.clone()))
             );
             for (i, sub) in subs.unwrap().iter().enumerate() {
                 assert_eq!(
                     System::events()[i + 1].event,
-                    mock::Event::MusicStylesPallet(SubStyleAdded(sub.clone()))
+                    mock::RuntimeEvent::MusicStylesPallet(SubStyleAdded(sub.clone()))
                 );
             }
         });
@@ -189,7 +193,7 @@ mod add_sub_style {
         new_test_ext(true).execute_with(|| {
             assert_noop!(
                 MusicStylesPallet::add_sub_style(
-                    Origin::signed(BOB),
+                    RuntimeOrigin::signed(BOB),
                     b"Rap".to_vec(),
                     vec![b"New".to_vec()]
                 ),
@@ -203,7 +207,7 @@ mod add_sub_style {
         new_test_ext(true).execute_with(|| {
             assert_noop!(
                 MusicStylesPallet::add_sub_style(
-                    Origin::root(),
+                    RuntimeOrigin::root(),
                     b"Rap".to_vec(),
                     vec![b"Drill".to_vec()]
                 ),
@@ -217,7 +221,7 @@ mod add_sub_style {
         new_test_ext(true).execute_with(|| {
             assert_noop!(
                 MusicStylesPallet::add_sub_style(
-                    Origin::root(),
+                    RuntimeOrigin::root(),
                     b"Inexisting Style".to_vec(),
                     vec![b"test sub style".to_vec()],
                 ),
@@ -236,7 +240,11 @@ mod add_sub_style {
 
             // Too long main style name
             assert_noop!(
-                MusicStylesPallet::add_sub_style(Origin::root(), b"Rap".to_vec(), vec![long_name]),
+                MusicStylesPallet::add_sub_style(
+                    RuntimeOrigin::root(),
+                    b"Rap".to_vec(),
+                    vec![long_name]
+                ),
                 Error::<Test>::NameTooLong
             );
         });
@@ -249,7 +257,7 @@ mod add_sub_style {
             // Fill the storage
             for i in 0..<MaxSubStyles as Get<u32>>::get() {
                 assert_ok!(MusicStylesPallet::add_sub_style(
-                    Origin::root(),
+                    RuntimeOrigin::root(),
                     b"Raggae".to_vec(),
                     vec![generate_random_name(i)]
                 ));
@@ -258,7 +266,7 @@ mod add_sub_style {
             // One more should fail
             assert_noop!(
                 MusicStylesPallet::add_sub_style(
-                    Origin::root(),
+                    RuntimeOrigin::root(),
                     b"Raggae".to_vec(),
                     vec![b"Too much".to_vec()]
                 ),
@@ -275,7 +283,7 @@ mod add_sub_style {
 
             let new_name = b"Victory".to_vec();
             assert_ok!(MusicStylesPallet::add_sub_style(
-                Origin::root(),
+                RuntimeOrigin::root(),
                 b"Rap".to_vec(),
                 vec![new_name.clone()]
             ));

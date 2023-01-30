@@ -30,10 +30,10 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
         /// Who can manage a music style list
-        type AdminOrigin: EnsureOrigin<Self::Origin>;
+        type AdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
         /// Weight information for extrinsics in this pallet.
         type Weights: WeightInfo;
@@ -110,6 +110,7 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         /// Add new styles
         /// Supports also adding sub styles into it at the same ime
+        #[pallet::call_index(0)]
         #[pallet::weight(T::Weights::add_style(
             <MaxNameLength as Get<u32>>::get(),
             <MaxSubStyles as Get<u32>>::get()
@@ -159,6 +160,7 @@ pub mod pallet {
             Ok(())
         }
 
+        #[pallet::call_index(1)]
         #[pallet::weight(T::Weights::add_sub_style(
             <MaxNameLength as Get<u32>>::get(),
             <MaxSubStyles as Get<u32>>::get()
