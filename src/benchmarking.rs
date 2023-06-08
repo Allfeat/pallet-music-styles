@@ -29,9 +29,9 @@ benchmarks! {
             }
         }
 
-        let origin = T::AdminOrigin::successful_origin();
+        let origin = T::AdminOrigin::try_successful_origin();
         let call = Call::<T>::add_style { name: new_style.clone(), sub: new_sub_styles.clone() };
-    }: { call.dispatch_bypass_filter(origin)? }
+    }: { call.dispatch_bypass_filter(origin.unwrap())? }
     verify {
         if let Some(sub_styles) = new_sub_styles {
             assert_last_event::<T>(
@@ -53,10 +53,10 @@ benchmarks! {
             new_subs_style.push(vec![0 + i as u8; n as usize])
         }
 
-        let origin = T::AdminOrigin::successful_origin();
-        Call::<T>::add_style { name: parent_style.clone(), sub: None }.dispatch_bypass_filter(origin.clone())?;
+        let origin = T::AdminOrigin::try_successful_origin();
+        Call::<T>::add_style { name: parent_style.clone(), sub: None }.dispatch_bypass_filter(origin.clone().unwrap())?;
         let call = Call::<T>::add_sub_style { parent_style, subs_style: new_subs_style.clone() };
-    }: { call.dispatch_bypass_filter(origin)? }
+    }: { call.dispatch_bypass_filter(origin.unwrap())? }
     verify {
         assert_last_event::<T>(Event::<T>::SubStyleAdded(new_subs_style.last().unwrap().clone()).into());
     }
