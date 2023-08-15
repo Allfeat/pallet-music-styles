@@ -72,21 +72,12 @@ pub mod pallet {
     }
 
     #[pallet::genesis_config]
+    #[derive(frame_support::DefaultNoBound)]
     pub struct GenesisConfig<T: Config> {
         /// The existing music styles at the genesis
         pub styles: Vec<(Vec<u8>, Vec<Vec<u8>>)>,
         // Note: Use phantom data because we need a Generic in the GenesisConfig
         pub phantom: PhantomData<T>,
-    }
-
-    #[cfg(feature = "std")]
-    impl<T: Config> Default for GenesisConfig<T> {
-        fn default() -> Self {
-            Self {
-                styles: Default::default(),
-                phantom: Default::default(),
-            }
-        }
     }
 
     #[pallet::genesis_build]
