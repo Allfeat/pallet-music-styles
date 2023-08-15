@@ -35,58 +35,17 @@ pub trait WeightInfo {
     fn add_sub_style(n: u32, x: u32, ) -> Weight;
 }
 
-/// Weight functions for `pallet_music_styles`.
-pub struct AllfeatWeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for AllfeatWeightInfo<T> {
-    // Storage: MusicStyles Styles (r:1 w:1)
-    /// The range of component `n` is `[1, 64]`.
-    /// The range of component `x` is `[0, 50]`.
-    fn add_style(n: u32, x: u32, ) -> Weight {
-        Weight::from_ref_time(11_843_000 as u64)
-            // Standard Error: 1_000
-            .saturating_add(Weight::from_ref_time(75_000 as u64).saturating_mul(n as u64))
-            // Standard Error: 2_000
-            .saturating_add(Weight::from_ref_time(1_303_000 as u64).saturating_mul(x as u64))
-            .saturating_add(T::DbWeight::get().reads(1 as u64))
-            .saturating_add(T::DbWeight::get().writes(1 as u64))
-    }
-    // Storage: MusicStyles Styles (r:1 w:1)
-    /// The range of component `n` is `[1, 64]`.
-    /// The range of component `x` is `[1, 50]`.
-    fn add_sub_style(n: u32, x: u32, ) -> Weight {
-        Weight::from_ref_time(11_483_000 as u64)
-            // Standard Error: 5_000
-            .saturating_add(Weight::from_ref_time(57_000 as u64).saturating_mul(n as u64))
-            // Standard Error: 7_000
-            .saturating_add(Weight::from_ref_time(1_286_000 as u64).saturating_mul(x as u64))
-            .saturating_add(T::DbWeight::get().reads(1 as u64))
-            .saturating_add(T::DbWeight::get().writes(1 as u64))
-    }
-}
-
 impl WeightInfo for () {
     // Storage: MusicStyles Styles (r:1 w:1)
     /// The range of component `n` is `[1, 64]`.
     /// The range of component `x` is `[0, 50]`.
     fn add_style(n: u32, x: u32, ) -> Weight {
-        Weight::from_ref_time(11_843_000 as u64)
-            // Standard Error: 1_000
-            .saturating_add(Weight::from_ref_time(75_000 as u64).saturating_mul(n as u64))
-            // Standard Error: 2_000
-            .saturating_add(Weight::from_ref_time(1_303_000 as u64).saturating_mul(x as u64))
-            .saturating_add(RocksDbWeight::get().reads(1 as u64))
-            .saturating_add(RocksDbWeight::get().writes(1 as u64))
+        Weight::default()
     }
     // Storage: MusicStyles Styles (r:1 w:1)
     /// The range of component `n` is `[1, 64]`.
     /// The range of component `x` is `[1, 50]`.
     fn add_sub_style(n: u32, x: u32, ) -> Weight {
-        Weight::from_ref_time(11_483_000 as u64)
-            // Standard Error: 5_000
-            .saturating_add(Weight::from_ref_time(57_000 as u64).saturating_mul(n as u64))
-            // Standard Error: 7_000
-            .saturating_add(Weight::from_ref_time(1_286_000 as u64).saturating_mul(x as u64))
-            .saturating_add(RocksDbWeight::get().reads(1 as u64))
-            .saturating_add(RocksDbWeight::get().writes(1 as u64))
+        Weight::default()
     }
 }
